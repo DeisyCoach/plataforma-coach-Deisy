@@ -1,18 +1,28 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { createClient } from '@supabase/supabase-js';
-import { UserPlus, Pencil, Trash2, Search, Dumbbell, Utensils, Pill, PauseCircle, PlayCircle, Key, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Search, Dumbbell, Utensils, Pill, PauseCircle, PlayCircle, Key, Eye, EyeOff, X } from 'lucide-react';
 
 export function Athletes() {
   const [athletes, setAthletes] = useState<any[]>([]);
   const [athleteDetails, setAthleteDetails] = useState<any>({});
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Modal Crear
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newFullName, setNewFullName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Modal Editar
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAthleteId, setEditingAthleteId] = useState<string | null>(null);
+  const [editFullName, setEditFullName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => { fetchAthletesAndDetails(); }, []);
@@ -38,6 +48,7 @@ export function Athletes() {
     setAthletes(athletesData);
   };
 
+  // 🚨 CREAR ATLETA NUEVO CON CONTRASEÑA
   const handleAddAthlete = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFullName || !newEmail || !newPassword) return alert('Por favor llena todos los campos');
@@ -46,47 +57,94 @@ export function Athletes() {
     setIsSubmitting(true);
 
     try {
-      // 1. Crear un cliente secundario para no cerrar la sesión del Coach actual
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       if (supabaseUrl && supabaseAnonKey) {
-        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: { persistSession: false }
-        });
-
-        // Registrar el usuario en el módulo de Autenticación de Supabase
-        const { error: authError } = await tempClient.auth.signUp({
+        const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+        await tempClient.auth.signUp({
           email: newEmail,
           password: newPassword,
-          options: {
-            data: {
-              full_name: newFullName,
-              role: 'athlete'
-            }
-          }
+          options: { data: { full_name: newFullName, role: 'athlete' } }
         });
-
-        if (authError && !authError.message.includes('already registered')) {
-          console.warn('Aviso de Auth:', authError.message);
-        }
       }
 
-      // 2. Registrar al atleta en la tabla pública
       const { error: dbError } = await supabase.from('athletes').insert([{ full_name: newFullName, email: newEmail }]);
 
       if (!dbError) {
-        alert(`¡Atleta creado exitosamente!\n\nEmail: ${newEmail}\nContraseña: ${newPassword}\n\nYa puede iniciar sesión.`);
+        alert(`¡Atleta creado exitosamente!\n\nEmail: ${newEmail}\nContraseña: ${newPassword}`);
         setNewFullName('');
         setNewEmail('');
         setNewPassword('');
         setIsAddModalOpen(false);
         fetchAthletesAndDetails();
       } else {
-        alert('Error al guardar atleta en la tabla: ' + dbError.message);
+        alert('Error en base de datos: ' + dbError.message);
       }
     } catch (err: any) {
       alert('Error inesperado: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 🚨 ABRIR MODAL EDITAR ATLETA
+  const openEditModal = (athlete: any) => {
+    setEditingAthleteId(athlete.id);
+    setEditFullName(athlete.full_name);
+    setEditEmail(athlete.email);
+    setEditPassword('');
+    setIsEditModalOpen(true);
+  };
+
+  // 🚨 ACTUALIZAR ATLETA EXISTENTE Y ASIGNAR CONTRASEÑA
+  const handleUpdateAthlete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAthleteId || !editFullName || !editEmail) return alert('Llena los campos obligatorios');
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Actualizar datos en la tabla principal
+      const { error: dbError } = await supabase
+        .from('athletes')
+        .update({ full_name: editFullName, email: editEmail })
+        .eq('id', editingAthleteId);
+
+      if (dbError) throw dbError;
+
+      // 2. Si se ingresó una contraseña, crear/actualizar su cuenta de Auth
+      if (editPassword.trim().length > 0) {
+        if (editPassword.length < 6) return alert('La contraseña debe tener al menos 6 caracteres');
+
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        if (supabaseUrl && supabaseAnonKey) {
+          const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+          
+          const { error: authError } = await tempClient.auth.signUp({
+            email: editEmail,
+            password: editPassword,
+            options: { data: { full_name: editFullName, role: 'athlete' } }
+          });
+
+          // Si el usuario ya existía en Auth, le enviamos un enlace o le confirmamos
+          if (authError && authError.message.includes('already registered')) {
+            await tempClient.auth.resetPasswordForEmail(editEmail);
+            alert(`Los datos de ${editFullName} fueron actualizados.\n\nEl correo ya estaba registrado en el sistema. Se envió un correo de restablecimiento a ${editEmail} para activar la nueva contraseña.`);
+          } else {
+            alert(`¡Atleta actualizado correctamente!\n\n${editFullName} ahora puede ingresar con:\nCorreo: ${editEmail}\nContraseña: ${editPassword}`);
+          }
+        }
+      } else {
+        alert('Datos actualizados correctamente.');
+      }
+
+      setIsEditModalOpen(false);
+      fetchAthletesAndDetails();
+    } catch (err: any) {
+      alert('Error al actualizar: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -139,7 +197,7 @@ export function Athletes() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-black text-white">Mis Atletas</h2>
-          <p className="text-zinc-400 text-sm mt-1">Gestiona a tus alumnos y revisa sus asignaciones.</p>
+          <p className="text-zinc-400 text-sm mt-1">Gestiona a tus alumnos, asigna contraseñas y revisa sus avances.</p>
         </div>
         <button onClick={() => setIsAddModalOpen(true)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-colors">
           <UserPlus className="w-5 h-5" /> Agregar Atleta
@@ -202,7 +260,16 @@ export function Athletes() {
                     >
                       {isActive ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
                     </button>
-                    <button className="p-2 text-zinc-400 hover:text-white bg-zinc-900 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
+                    
+                    {/* 🚨 BOTÓN EDITAR HABILITADO */}
+                    <button 
+                      onClick={() => openEditModal(athlete)}
+                      className="p-2 text-zinc-400 hover:text-white bg-zinc-900 rounded-lg transition-colors"
+                      title="Editar Datos / Asignar Contraseña"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+
                     <button 
                       onClick={() => handleDeleteAthlete(athlete.id, athlete.full_name)} 
                       className="p-2 text-zinc-400 hover:text-red-400 bg-zinc-900 rounded-lg transition-colors"
@@ -218,77 +285,85 @@ export function Athletes() {
         </div>
       </div>
 
+      {/* MODAL CREAR ATLETA */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form onSubmit={handleAddAthlete} className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <h3 className="font-bold text-lg text-white flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-amber-500" /> Agregar Nuevo Atleta
             </h3>
-            
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Nombre Completo</label>
-              <input 
-                type="text" 
-                value={newFullName} 
-                onChange={e => setNewFullName(e.target.value)} 
-                className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none transition-colors" 
-                placeholder="Ej. Juan Pérez" 
-                required
-              />
+              <input type="text" value={newFullName} onChange={e => setNewFullName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" placeholder="Ej. Juan Pérez" required />
             </div>
-
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correo Electrónico</label>
-              <input 
-                type="email" 
-                value={newEmail} 
-                onChange={e => setNewEmail(e.target.value)} 
-                className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none transition-colors" 
-                placeholder="ejemplo@gmail.com" 
-                required
-              />
+              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" placeholder="ejemplo@gmail.com" required />
             </div>
-
             <div>
               <label className="block text-xs font-bold text-amber-500 uppercase mb-1 flex items-center gap-1">
                 <Key className="w-3.5 h-3.5" /> Contraseña de Acceso
               </label>
               <div className="relative">
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  value={newPassword} 
-                  onChange={e => setNewPassword(e.target.value)} 
-                  className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none pr-10 transition-colors text-sm" 
-                  placeholder="Mínimo 6 caracteres (ej. Atleta2026!)" 
-                  required
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
-                >
+                <input type={showPassword ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none pr-10" placeholder="Mínimo 6 caracteres" required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <p className="text-[10px] text-zinc-500 mt-1">Esta es la clave con la que tu atleta iniciará sesión.</p>
+            </div>
+            <div className="flex gap-2 pt-2 border-t border-zinc-800/80">
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="w-1/2 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800" disabled={isSubmitting}>Cancelar</button>
+              <button type="submit" className="w-1/2 py-2.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 disabled:opacity-50" disabled={isSubmitting}>{isSubmitting ? 'Guardando...' : 'Guardar Atleta'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 🚨 MODAL EDITAR ATLETA Y DEFINIR CONTRASEÑA */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleUpdateAthlete} className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-amber-500" /> Editar Atleta
+              </h3>
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-zinc-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Nombre Completo</label>
+              <input type="text" value={editFullName} onChange={e => setEditFullName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" required />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correo Electrónico</label>
+              <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" required />
+            </div>
+
+            <div className="border-t border-zinc-800/80 pt-3">
+              <label className="block text-xs font-bold text-amber-500 uppercase mb-1 flex items-center gap-1">
+                <Key className="w-3.5 h-3.5" /> Asignar / Cambiar Contraseña
+              </label>
+              <div className="relative">
+                <input 
+                  type={showEditPassword ? "text" : "password"} 
+                  value={editPassword} 
+                  onChange={e => setEditPassword(e.target.value)} 
+                  className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none pr-10 text-sm" 
+                  placeholder="Escribe la clave para este atleta" 
+                />
+                <button type="button" onClick={() => setShowEditPassword(!showEditPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
+                  {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-500 mt-1">Si dejas este campo en blanco, su contraseña actual no se modificará.</p>
             </div>
 
             <div className="flex gap-2 pt-2 border-t border-zinc-800/80">
-              <button 
-                type="button" 
-                onClick={() => setIsAddModalOpen(false)} 
-                className="w-1/2 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800 transition-colors"
-                disabled={isSubmitting}
-              >
-                Cancelar
-              </button>
-              <button 
-                type="submit" 
-                className="w-1/2 py-2.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 transition-colors disabled:opacity-50"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Guardando...' : 'Guardar Atleta'}
-              </button>
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="w-1/2 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800" disabled={isSubmitting}>Cancelar</button>
+              <button type="submit" className="w-1/2 py-2.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 disabled:opacity-50" disabled={isSubmitting}>{isSubmitting ? 'Guardando...' : 'Actualizar'}</button>
             </div>
           </form>
         </div>
