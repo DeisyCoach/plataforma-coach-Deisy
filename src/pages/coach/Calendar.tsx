@@ -30,12 +30,19 @@ export function Calendar() {
   const fetchData = async () => {
     setLoading(true);
     if (isCoach) {
-      const { data } = await supabase.from('athlete_routines').select('*, athletes(full_name), routines(name)');
+      const { data } = await supabase
+        .from('athlete_routines')
+        .select('*, athletes(full_name), routines(name)')
+        .order('order_index', { ascending: true, nullsFirst: false });
       setAssignments(data || []);
     } else {
       const { data: athlete } = await supabase.from('athletes').select('id').eq('email', user?.email).single();
       if (athlete) {
-        const { data } = await supabase.from('athlete_routines').select('*, routines(name)').eq('athlete_id', athlete.id);
+        const { data } = await supabase
+          .from('athlete_routines')
+          .select('*, routines(name)')
+          .eq('athlete_id', athlete.id)
+          .order('order_index', { ascending: true, nullsFirst: false });
         setAssignments(data || []);
       }
     }
@@ -84,8 +91,8 @@ export function Calendar() {
     }));
   };
 
-  // 🚨 NUEVAS FUNCIONES PARA REORDENAR EJERCICIOS EN EL CALENDARIO
-  const handleMoveUp = (index: number) => {
+  // Reordenar ejercicios dentro de una rutina antes de asignarla
+  const handleMoveUpModal = (index: number) => {
     if (index === 0) return;
     const newExercises = [...customExercises];
     const temp = newExercises[index - 1];
@@ -94,7 +101,7 @@ export function Calendar() {
     setCustomExercises(newExercises);
   };
 
-  const handleMoveDown = (index: number) => {
+  const handleMoveDownModal = (index: number) => {
     if (index === customExercises.length - 1) return;
     const newExercises = [...customExercises];
     const temp = newExercises[index + 1];
@@ -103,16 +110,40 @@ export function Calendar() {
     setCustomExercises(newExercises);
   };
 
+  // 🚨 REORDENAR BLOQUES DE RUTINA EN EL CALENDARIO DEL DÍA
+  const handleMoveAssignment = async (currentAssign: any, direction: 'up' | 'down', dayAssignments: any[]) => {
+    const currentIndex = dayAssignments.findIndex(a => a.id === currentAssign.id);
+    if (currentIndex === -1) return;
+    
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= dayAssignments.length) return;
+
+    const targetAssign = dayAssignments[targetIndex];
+
+    // Intercambiamos los indices de posición
+    await Promise.all([
+      supabase.from('athlete_routines').update({ order_index: targetIndex }).eq('id', currentAssign.id),
+      supabase.from('athlete_routines').update({ order_index: currentIndex }).eq('id', targetAssign.id)
+    ]);
+    
+    fetchData();
+  };
+
   const handleAssign = async () => {
     if (!selectedAthlete || !selectedRoutine) return alert('Selecciona atleta y rutina');
     if (customExercises.length === 0) return alert('La rutina debe tener al menos un ejercicio.');
+
+    // Calcular la posición al final de la lista del día
+    const currentDayAssignments = assignments.filter(a => Number(a.day_of_week) === selectedDay && a.athlete_id === selectedAthlete);
+    const nextOrderIndex = currentDayAssignments.length;
 
     const { error } = await supabase.from('athlete_routines').insert([
       { 
         athlete_id: selectedAthlete, 
         routine_id: selectedRoutine, 
         day_of_week: selectedDay,
-        custom_exercises: customExercises 
+        custom_exercises: customExercises,
+        order_index: nextOrderIndex
       }
     ]);
 
@@ -141,7 +172,7 @@ export function Calendar() {
             {isCoach ? 'Calendario General' : 'Mi Semana de Entrenamiento'}
           </h2>
           <p className="text-zinc-400 text-sm mt-1">
-            {isCoach ? 'Planificación global de todos tus atletas.' : 'Toca tu rutina del día para ir a entrenar.'}
+            {isCoach ? 'Planificación global de todos tus atletas. Usa las flechas para reordenar los bloques.' : 'Toca tu rutina del día para ir a entrenar.'}
           </p>
         </div>
         {isCoach && (
@@ -152,46 +183,74 @@ export function Calendar() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-7 gap-4 overflow-x-auto pb-4">
-        {days.map(day => (
-          <div key={day.id} className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800 min-w-[160px] flex flex-col h-full">
-            <h3 className="text-center font-black text-amber-500 mb-4 tracking-wider">{day.name}</h3>
-            
-            <div className="space-y-3 flex-1">
-              {assignments.filter(a => Number(a.day_of_week) === day.id).length === 0 ? (
-                <div className="text-center text-zinc-600 text-xs italic py-4">Sin entrenamientos</div>
-              ) : (
-                assignments.filter(a => Number(a.day_of_week) === day.id).map(assign => (
-                  <div key={assign.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 relative group transition-all hover:border-amber-500/50">
-                    {isCoach ? (
-                      <>
-                        <button onClick={() => handleDeleteAssign(assign.id)} className="absolute top-2 right-2 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <p className="text-[10px] font-bold text-zinc-500 flex items-center gap-1.5 uppercase mb-1">
-                          <User className="w-3 h-3" /> {assign.athletes?.full_name?.split(' ')[0]}
-                        </p>
-                        <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight">
-                          <Dumbbell className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" /> 
-                          {assign.routines?.name}
-                        </p>
-                      </>
-                    ) : (
-                      <Link to="/athlete/dashboard" state={{ selectedDay: day.id }} className="block">
-                        <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight">
-                          <Dumbbell className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" /> 
-                          {assign.routines?.name}
-                        </p>
-                        <div className="mt-3 pt-2 border-t border-zinc-800 text-xs font-bold text-amber-500 flex items-center justify-between group-hover:text-amber-400">
-                          Ir a entrenar <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                        </div>
-                      </Link>
-                    )}
-                  </div>
-                ))
-              )}
+        {days.map(day => {
+          const dayAssignments = assignments.filter(a => Number(a.day_of_week) === day.id);
+
+          return (
+            <div key={day.id} className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800 min-w-[160px] flex flex-col h-full">
+              <h3 className="text-center font-black text-amber-500 mb-4 tracking-wider">{day.name}</h3>
+              
+              <div className="space-y-3 flex-1">
+                {dayAssignments.length === 0 ? (
+                  <div className="text-center text-zinc-600 text-xs italic py-4">Sin entrenamientos</div>
+                ) : (
+                  dayAssignments.map((assign, idx) => (
+                    <div key={assign.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 relative group transition-all hover:border-amber-500/50">
+                      {isCoach ? (
+                        <>
+                          {/* 🚨 BOTONERA PARA REORDENAR Y ELIMINAR BLOQUES EN EL CALENDARIO */}
+                          <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-950/90 px-1.5 py-1 rounded-lg border border-zinc-800">
+                            <button 
+                              onClick={() => handleMoveAssignment(assign, 'up', dayAssignments)}
+                              disabled={idx === 0}
+                              className="text-zinc-400 hover:text-amber-400 disabled:opacity-20 p-0.5 transition-colors"
+                              title="Subir bloque"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleMoveAssignment(assign, 'down', dayAssignments)}
+                              disabled={idx === dayAssignments.length - 1}
+                              className="text-zinc-400 hover:text-amber-400 disabled:opacity-20 p-0.5 transition-colors"
+                              title="Bajar bloque"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteAssign(assign.id)} 
+                              className="text-zinc-400 hover:text-red-400 p-0.5 ml-1 transition-colors"
+                              title="Eliminar asignación"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <p className="text-[10px] font-bold text-zinc-500 flex items-center gap-1.5 uppercase mb-1">
+                            <User className="w-3 h-3" /> {assign.athletes?.full_name?.split(' ')[0]}
+                          </p>
+                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight pr-14">
+                            <Dumbbell className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" /> 
+                            {assign.routines?.name}
+                          </p>
+                        </>
+                      ) : (
+                        <Link to="/athlete/dashboard" state={{ selectedDay: day.id }} className="block">
+                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight">
+                            <Dumbbell className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" /> 
+                            {assign.routines?.name}
+                          </p>
+                          <div className="mt-3 pt-2 border-t border-zinc-800 text-xs font-bold text-amber-500 flex items-center justify-between group-hover:text-amber-400">
+                            Ir a entrenar <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                          </div>
+                        </Link>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {isModalOpen && isCoach && (
@@ -224,7 +283,6 @@ export function Calendar() {
                 </div>
               </div>
 
-              {/* 🚨 ÁREA DE EDICIÓN AVANZADA */}
               {customExercises.length > 0 && (
                 <div className="mt-4 border-t border-zinc-800 pt-4">
                   <label className="block text-xs font-bold text-amber-500 uppercase mb-1 flex items-center gap-1.5">
@@ -238,22 +296,21 @@ export function Calendar() {
                         <div className="flex justify-between items-start mb-2 border-b border-zinc-800/50 pb-2">
                           <span className="text-xs font-bold text-zinc-200 line-clamp-1 pr-2">{ex.name}</span>
                           
-                          {/* 🚨 BOTONERA COMPLETA: ARRIBA, ABAJO Y ELIMINAR */}
                           <div className="flex items-center gap-1">
                             <button 
                               type="button" 
-                              onClick={() => handleMoveUp(idx)}
+                              onClick={() => handleMoveUpModal(idx)}
                               disabled={idx === 0}
-                              className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 disabled:hover:text-zinc-600 p-1 bg-zinc-900 rounded-md transition-colors shrink-0"
+                              className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 p-1 bg-zinc-900 rounded-md transition-colors shrink-0"
                               title="Mover arriba"
                             >
                               <ArrowUp className="w-4 h-4" />
                             </button>
                             <button 
                               type="button" 
-                              onClick={() => handleMoveDown(idx)}
+                              onClick={() => handleMoveDownModal(idx)}
                               disabled={idx === customExercises.length - 1}
-                              className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 disabled:hover:text-zinc-600 p-1 bg-zinc-900 rounded-md transition-colors shrink-0"
+                              className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 p-1 bg-zinc-900 rounded-md transition-colors shrink-0"
                               title="Mover abajo"
                             >
                               <ArrowDown className="w-4 h-4" />
