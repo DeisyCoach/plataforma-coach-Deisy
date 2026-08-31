@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase/client';
-import { ArrowLeft, Plus, Save, Trash2, Video, Edit3 } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash2, Video, Edit3, ArrowUp, ArrowDown } from 'lucide-react';
 
 export function RoutineBuilder() {
   const { id } = useParams();
@@ -61,6 +61,25 @@ export function RoutineBuilder() {
 
   const removeExercise = (index: number) => {
     const newExercises = exercises.filter((_, i) => i !== index);
+    setExercises(newExercises);
+  };
+
+  // --- NUEVAS FUNCIONES PARA MOVER EJERCICIOS ---
+  const moveExerciseUp = (index: number) => {
+    if (index === 0) return; // Si ya es el primero, no hace nada
+    const newExercises = [...exercises];
+    const temp = newExercises[index - 1];
+    newExercises[index - 1] = newExercises[index];
+    newExercises[index] = temp;
+    setExercises(newExercises);
+  };
+
+  const moveExerciseDown = (index: number) => {
+    if (index === exercises.length - 1) return; // Si ya es el último, no hace nada
+    const newExercises = [...exercises];
+    const temp = newExercises[index + 1];
+    newExercises[index + 1] = newExercises[index];
+    newExercises[index] = temp;
     setExercises(newExercises);
   };
 
@@ -157,13 +176,35 @@ export function RoutineBuilder() {
             <div key={exercise.id || index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative group transition-all hover:shadow-md">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-sm font-bold text-gray-400">EJERCICIO {index + 1}</span>
-                <button 
-                  onClick={() => removeExercise(index)}
-                  className="text-gray-400 hover:text-red-500 transition-colors bg-red-50 p-2 rounded-lg"
-                  title="Eliminar ejercicio"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                
+                {/* --- NUEVA BOTONERA (SUBIR, BAJAR, ELIMINAR) --- */}
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => moveExerciseUp(index)}
+                    disabled={index === 0}
+                    className="text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors bg-gray-50 p-2 rounded-lg"
+                    title="Mover hacia arriba"
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                  
+                  <button 
+                    onClick={() => moveExerciseDown(index)}
+                    disabled={index === exercises.length - 1}
+                    className="text-gray-400 hover:text-blue-500 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors bg-gray-50 p-2 rounded-lg"
+                    title="Mover hacia abajo"
+                  >
+                    <ArrowDown className="w-4 h-4" />
+                  </button>
+
+                  <button 
+                    onClick={() => removeExercise(index)}
+                    className="text-gray-400 hover:text-red-500 transition-colors bg-red-50 p-2 rounded-lg ml-2"
+                    title="Eliminar ejercicio"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">

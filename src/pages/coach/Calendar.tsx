@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../providers/AuthProvider';
-import { Calendar as CalendarIcon, Plus, User, Dumbbell, ArrowRight, Trash2, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, User, Dumbbell, ArrowRight, Trash2, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export function Calendar() {
@@ -75,7 +75,6 @@ export function Calendar() {
     setCustomExercises(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // 🚨 NUEVA FUNCIÓN: Permite editar series, reps o descansos en vivo
   const handleEditExercise = (indexToEdit: number, field: string, newValue: string) => {
     setCustomExercises(prev => prev.map((ex, index) => {
       if (index === indexToEdit) {
@@ -83,6 +82,25 @@ export function Calendar() {
       }
       return ex;
     }));
+  };
+
+  // 🚨 NUEVAS FUNCIONES PARA REORDENAR EJERCICIOS EN EL CALENDARIO
+  const handleMoveUp = (index: number) => {
+    if (index === 0) return;
+    const newExercises = [...customExercises];
+    const temp = newExercises[index - 1];
+    newExercises[index - 1] = newExercises[index];
+    newExercises[index] = temp;
+    setCustomExercises(newExercises);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index === customExercises.length - 1) return;
+    const newExercises = [...customExercises];
+    const temp = newExercises[index + 1];
+    newExercises[index + 1] = newExercises[index];
+    newExercises[index] = temp;
+    setCustomExercises(newExercises);
   };
 
   const handleAssign = async () => {
@@ -219,17 +237,38 @@ export function Calendar() {
                       <div key={idx} className="bg-zinc-950 p-3 rounded-lg border border-zinc-800/80">
                         <div className="flex justify-between items-start mb-2 border-b border-zinc-800/50 pb-2">
                           <span className="text-xs font-bold text-zinc-200 line-clamp-1 pr-2">{ex.name}</span>
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemoveExercise(idx)}
-                            className="text-zinc-600 hover:text-red-400 p-1 bg-zinc-900 rounded-md transition-colors shrink-0"
-                            title="Quitar ejercicio"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                          
+                          {/* 🚨 BOTONERA COMPLETA: ARRIBA, ABAJO Y ELIMINAR */}
+                          <div className="flex items-center gap-1">
+                            <button 
+                              type="button" 
+                              onClick={() => handleMoveUp(idx)}
+                              disabled={idx === 0}
+                              className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 disabled:hover:text-zinc-600 p-1 bg-zinc-900 rounded-md transition-colors shrink-0"
+                              title="Mover arriba"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => handleMoveDown(idx)}
+                              disabled={idx === customExercises.length - 1}
+                              className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 disabled:hover:text-zinc-600 p-1 bg-zinc-900 rounded-md transition-colors shrink-0"
+                              title="Mover abajo"
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveExercise(idx)}
+                              className="text-zinc-600 hover:text-red-400 p-1 bg-zinc-900 rounded-md transition-colors shrink-0 ml-1"
+                              title="Quitar ejercicio"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         
-                        {/* 🚨 CASILLAS PARA EDITAR SERIES, REPS Y DESCANSO */}
                         <div className="grid grid-cols-3 gap-2">
                           <div>
                             <label className="block text-[8px] font-bold text-zinc-500 uppercase mb-0.5">Series</label>
