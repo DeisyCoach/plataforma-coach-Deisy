@@ -91,7 +91,6 @@ export function Calendar() {
     }));
   };
 
-  // Reordenar ejercicios dentro de una rutina antes de asignarla
   const handleMoveUpModal = (index: number) => {
     if (index === 0) return;
     const newExercises = [...customExercises];
@@ -110,7 +109,7 @@ export function Calendar() {
     setCustomExercises(newExercises);
   };
 
-  // 🚨 REORDENAR BLOQUES DE RUTINA EN EL CALENDARIO DEL DÍA
+  // 🚨 REORDENAMIENTO DE ASIGNACIONES (PANTALLA Y MÓVIL)
   const handleMoveAssignment = async (currentAssign: any, direction: 'up' | 'down', dayAssignments: any[]) => {
     const currentIndex = dayAssignments.findIndex(a => a.id === currentAssign.id);
     if (currentIndex === -1) return;
@@ -120,10 +119,13 @@ export function Calendar() {
 
     const targetAssign = dayAssignments[targetIndex];
 
-    // Intercambiamos los indices de posición
+    const currentOrder = currentAssign.order_index ?? currentIndex;
+    const targetOrder = targetAssign.order_index ?? targetIndex;
+
+    // Actualización simultánea en la base de datos
     await Promise.all([
-      supabase.from('athlete_routines').update({ order_index: targetIndex }).eq('id', currentAssign.id),
-      supabase.from('athlete_routines').update({ order_index: currentIndex }).eq('id', targetAssign.id)
+      supabase.from('athlete_routines').update({ order_index: targetOrder }).eq('id', currentAssign.id),
+      supabase.from('athlete_routines').update({ order_index: currentOrder }).eq('id', targetAssign.id)
     ]);
     
     fetchData();
@@ -133,7 +135,6 @@ export function Calendar() {
     if (!selectedAthlete || !selectedRoutine) return alert('Selecciona atleta y rutina');
     if (customExercises.length === 0) return alert('La rutina debe tener al menos un ejercicio.');
 
-    // Calcular la posición al final de la lista del día
     const currentDayAssignments = assignments.filter(a => Number(a.day_of_week) === selectedDay && a.athlete_id === selectedAthlete);
     const nextOrderIndex = currentDayAssignments.length;
 
@@ -198,37 +199,37 @@ export function Calendar() {
                     <div key={assign.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 relative group transition-all hover:border-amber-500/50">
                       {isCoach ? (
                         <>
-                          {/* 🚨 BOTONERA PARA REORDENAR Y ELIMINAR BLOQUES EN EL CALENDARIO */}
-                          <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-950/90 px-1.5 py-1 rounded-lg border border-zinc-800">
+                          {/* 🚨 BOTONES SIEMPRE VISIBLES (Aptos para Móvil y PC) */}
+                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-zinc-950 px-1.5 py-1 rounded-lg border border-zinc-800">
                             <button 
                               onClick={() => handleMoveAssignment(assign, 'up', dayAssignments)}
                               disabled={idx === 0}
-                              className="text-zinc-400 hover:text-amber-400 disabled:opacity-20 p-0.5 transition-colors"
+                              className="text-zinc-400 hover:text-amber-400 active:text-amber-500 disabled:opacity-20 p-1 transition-colors"
                               title="Subir bloque"
                             >
-                              <ArrowUp className="w-3.5 h-3.5" />
+                              <ArrowUp className="w-4 h-4" />
                             </button>
                             <button 
                               onClick={() => handleMoveAssignment(assign, 'down', dayAssignments)}
                               disabled={idx === dayAssignments.length - 1}
-                              className="text-zinc-400 hover:text-amber-400 disabled:opacity-20 p-0.5 transition-colors"
+                              className="text-zinc-400 hover:text-amber-400 active:text-amber-500 disabled:opacity-20 p-1 transition-colors"
                               title="Bajar bloque"
                             >
-                              <ArrowDown className="w-3.5 h-3.5" />
+                              <ArrowDown className="w-4 h-4" />
                             </button>
                             <button 
                               onClick={() => handleDeleteAssign(assign.id)} 
-                              className="text-zinc-400 hover:text-red-400 p-0.5 ml-1 transition-colors"
+                              className="text-zinc-400 hover:text-red-400 p-1 ml-0.5 transition-colors"
                               title="Eliminar asignación"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
 
                           <p className="text-[10px] font-bold text-zinc-500 flex items-center gap-1.5 uppercase mb-1">
                             <User className="w-3 h-3" /> {assign.athletes?.full_name?.split(' ')[0]}
                           </p>
-                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight pr-14">
+                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight pr-20">
                             <Dumbbell className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" /> 
                             {assign.routines?.name}
                           </p>
