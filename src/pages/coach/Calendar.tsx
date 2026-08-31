@@ -86,7 +86,6 @@ export function Calendar() {
     }
   };
 
-  // Funciones Modal Asignar Nuevo
   const handleRemoveExercise = (indexToRemove: number) => {
     setCustomExercises(prev => prev.filter((_, index) => index !== indexToRemove));
   };
@@ -113,7 +112,6 @@ export function Calendar() {
     setCustomExercises(newExercises);
   };
 
-  // Reordenar Asignaciones en el Calendario
   const handleMoveAssignment = async (currentAssign: any, direction: 'up' | 'down', dayAssignments: any[]) => {
     const currentIndex = dayAssignments.findIndex(a => a.id === currentAssign.id);
     if (currentIndex === -1) return;
@@ -122,7 +120,6 @@ export function Calendar() {
     if (targetIndex < 0 || targetIndex >= dayAssignments.length) return;
 
     const targetAssign = dayAssignments[targetIndex];
-
     const currentOrder = currentAssign.order_index ?? currentIndex;
     const targetOrder = targetAssign.order_index ?? targetIndex;
 
@@ -167,7 +164,6 @@ export function Calendar() {
     }
   };
 
-  // Funciones Editar Asignación Existente
   const openEditModal = (assign: any) => {
     setEditingAssignment(assign);
     const exercises = assign.custom_exercises || [];
@@ -254,7 +250,6 @@ export function Calendar() {
                 ))}
               </select>
             </div>
-
             <button onClick={openAssignModal} className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-colors shadow-lg shadow-amber-500/20 shrink-0">
               <Plus className="w-5 h-5" /> Asignar Rutina
             </button>
@@ -359,7 +354,7 @@ export function Calendar() {
                           <div className="flex items-center gap-1">
                             <button type="button" onClick={() => handleMoveUpModal(idx)} disabled={idx === 0} className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 p-1 bg-zinc-900 rounded-md"><ArrowUp className="w-4 h-4" /></button>
                             <button type="button" onClick={() => handleMoveDownModal(idx)} disabled={idx === customExercises.length - 1} className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 p-1 bg-zinc-900 rounded-md"><ArrowDown className="w-4 h-4" /></button>
-                            <button type="button" onClick={() => handleRemoveExercise(idx)} className="text-zinc-600 hover:text-red-400 p-1 bg-zinc-900 rounded-md ml-1"><X className="w-4 h-4" /></button>
+                            <button type="button" onClick={() => handleRemoveExercise(idx)} className="text-zinc-400 hover:text-red-400 p-1 bg-zinc-900 rounded-md ml-1" title="Quitar Ejercicio"><X className="w-4 h-4" /></button>
                           </div>
                         </div>
 
@@ -378,21 +373,43 @@ export function Calendar() {
                           </div>
                         </div>
 
-                        {/* 🚨 CASILLA DE OBSERVACIONES/NOTAS */}
                         <div>
                           <label className="block text-[8px] font-bold text-amber-500 uppercase mb-0.5 flex items-center gap-1">
                             <MessageSquare className="w-2.5 h-2.5" /> Notas / Indicaciones Técnicas
                           </label>
-                          <input 
-                            type="text" 
-                            value={ex.notes || ''} 
-                            onChange={(e) => handleEditExercise(idx, 'notes', e.target.value)} 
-                            className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 focus:border-amber-500 outline-none" 
-                            placeholder="Ej. 2 reps en pausa / Drop set en la última serie / RPE 8" 
-                          />
+                          <input type="text" value={ex.notes || ''} onChange={(e) => handleEditExercise(idx, 'notes', e.target.value)} className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 focus:border-amber-500 outline-none" placeholder="Ej. 2 reps en pausa / Drop set en la última serie" />
                         </div>
                       </div>
                     ))}
+                    
+                    {/* 🚨 SELECTOR PARA AÑADIR EJERCICIOS DE LA PLANTILLA MÁSTER */}
+                    {(() => {
+                      const masterRoutine = routines.find(r => r.id === selectedRoutine);
+                      const masterExercises = masterRoutine ? (typeof masterRoutine.exercises === 'string' ? JSON.parse(masterRoutine.exercises) : masterRoutine.exercises) : [];
+                      
+                      return (
+                        <div className="mt-4 pt-4 border-t border-zinc-800/80">
+                          <label className="block text-[10px] font-bold text-amber-500 uppercase mb-2">➕ Añadir ejercicio de la plantilla</label>
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const exName = e.target.value;
+                              if (!exName) return;
+                              const exToAdd = masterExercises.find((ex: any) => ex.name === exName);
+                              if (exToAdd) {
+                                setCustomExercises(prev => [...prev, { ...exToAdd }]);
+                              }
+                            }}
+                            className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:border-amber-500 outline-none"
+                          >
+                            <option value="">-- Seleccionar ejercicio para añadir --</option>
+                            {masterExercises.map((ex: any, i: number) => (
+                              <option key={i} value={ex.name}>{ex.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -406,7 +423,7 @@ export function Calendar() {
         </div>
       )}
 
-      {/* 🚨 MODAL EDITAR ASIGNACIÓN EXISTENTE CON OBSERVACIONES */}
+      {/* MODAL EDITAR ASIGNACIÓN EXISTENTE */}
       {isEditModalOpen && editingAssignment && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-lg w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
@@ -425,7 +442,7 @@ export function Calendar() {
             </div>
 
             <div className="space-y-3 overflow-y-auto pr-2 pb-2 flex-1 custom-scrollbar">
-              <div className="space-y-3 bg-zinc-900/50 p-2 rounded-xl border border-zinc-800 max-h-80 overflow-y-auto custom-scrollbar">
+              <div className="space-y-3 bg-zinc-900/50 p-2 rounded-xl border border-zinc-800 max-h-[60vh] overflow-y-auto custom-scrollbar">
                 {editExercises.map((ex, idx) => (
                   <div key={idx} className="bg-zinc-950 p-3 rounded-lg border border-zinc-800/80 space-y-2">
                     <div className="flex justify-between items-start border-b border-zinc-800/50 pb-2">
@@ -433,7 +450,7 @@ export function Calendar() {
                       <div className="flex items-center gap-1">
                         <button type="button" onClick={() => handleMoveUpEdit(idx)} disabled={idx === 0} className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 p-1 bg-zinc-900 rounded-md"><ArrowUp className="w-4 h-4" /></button>
                         <button type="button" onClick={() => handleMoveDownEdit(idx)} disabled={idx === editExercises.length - 1} className="text-zinc-600 hover:text-amber-400 disabled:opacity-30 p-1 bg-zinc-900 rounded-md"><ArrowDown className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => handleRemoveEditExercise(idx)} className="text-zinc-600 hover:text-red-400 p-1 bg-zinc-900 rounded-md ml-1"><X className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => handleRemoveEditExercise(idx)} className="text-zinc-400 hover:text-red-400 p-1 bg-zinc-900 rounded-md ml-1" title="Quitar Ejercicio"><X className="w-4 h-4" /></button>
                       </div>
                     </div>
 
@@ -452,21 +469,43 @@ export function Calendar() {
                       </div>
                     </div>
 
-                    {/* 🚨 CASILLA DE OBSERVACIONES/NOTAS AL EDITAR */}
                     <div>
                       <label className="block text-[8px] font-bold text-amber-500 uppercase mb-0.5 flex items-center gap-1">
                         <MessageSquare className="w-2.5 h-2.5" /> Notas / Indicaciones Técnicas
                       </label>
-                      <input 
-                        type="text" 
-                        value={ex.notes || ''} 
-                        onChange={(e) => handleEditExerciseField(idx, 'notes', e.target.value)} 
-                        className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 focus:border-amber-500 outline-none" 
-                        placeholder="Ej. Reps pausa / Drop set / Iso 2 seg" 
-                      />
+                      <input type="text" value={ex.notes || ''} onChange={(e) => handleEditExerciseField(idx, 'notes', e.target.value)} className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs text-zinc-200 focus:border-amber-500 outline-none" placeholder="Ej. Reps pausa / Drop set / Iso 2 seg" />
                     </div>
                   </div>
                 ))}
+
+                {/* 🚨 SELECTOR PARA AÑADIR EJERCICIOS DE LA PLANTILLA MÁSTER AL EDITAR */}
+                {(() => {
+                  const masterRoutine = routines.find(r => r.id === editingAssignment.routine_id);
+                  const masterExercises = masterRoutine ? (typeof masterRoutine.exercises === 'string' ? JSON.parse(masterRoutine.exercises) : masterRoutine.exercises) : [];
+                  
+                  return (
+                    <div className="mt-4 pt-4 border-t border-zinc-800/80">
+                      <label className="block text-[10px] font-bold text-amber-500 uppercase mb-2">➕ Añadir ejercicio de la plantilla</label>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const exName = e.target.value;
+                          if (!exName) return;
+                          const exToAdd = masterExercises.find((ex: any) => ex.name === exName);
+                          if (exToAdd) {
+                            setEditExercises(prev => [...prev, { ...exToAdd }]);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-sm text-zinc-300 focus:border-amber-500 outline-none cursor-pointer"
+                      >
+                        <option value="">-- Seleccionar ejercicio para añadir --</option>
+                        {masterExercises.map((ex: any, i: number) => (
+                          <option key={i} value={ex.name}>{ex.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
