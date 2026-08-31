@@ -1,4 +1,3 @@
-// PRUEBA DE CAMBIO
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../providers/AuthProvider';
@@ -110,7 +109,7 @@ export function Calendar() {
     setCustomExercises(newExercises);
   };
 
-  // 🚨 REORDENAMIENTO DE ASIGNACIONES (PANTALLA Y MÓVIL)
+  // 🚨 FUNCIÓN DE REORDENAMIENTO ASEGURADA
   const handleMoveAssignment = async (currentAssign: any, direction: 'up' | 'down', dayAssignments: any[]) => {
     const currentIndex = dayAssignments.findIndex(a => a.id === currentAssign.id);
     if (currentIndex === -1) return;
@@ -123,7 +122,6 @@ export function Calendar() {
     const currentOrder = currentAssign.order_index ?? currentIndex;
     const targetOrder = targetAssign.order_index ?? targetIndex;
 
-    // Actualización simultánea en la base de datos
     await Promise.all([
       supabase.from('athlete_routines').update({ order_index: targetOrder }).eq('id', currentAssign.id),
       supabase.from('athlete_routines').update({ order_index: currentOrder }).eq('id', targetAssign.id)
@@ -197,40 +195,42 @@ export function Calendar() {
                   <div className="text-center text-zinc-600 text-xs italic py-4">Sin entrenamientos</div>
                 ) : (
                   dayAssignments.map((assign, idx) => (
-                    <div key={assign.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 relative group transition-all hover:border-amber-500/50">
+                    <div key={assign.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 relative transition-all hover:border-amber-500/50">
                       {isCoach ? (
                         <>
-                          {/* 🚨 BOTONES SIEMPRE VISIBLES (Aptos para Móvil y PC) */}
-                          <div className="absolute top-2 right-2 flex items-center gap-1 bg-zinc-950 px-1.5 py-1 rounded-lg border border-zinc-800">
-                            <button 
-                              onClick={() => handleMoveAssignment(assign, 'up', dayAssignments)}
-                              disabled={idx === 0}
-                              className="text-zinc-400 hover:text-amber-400 active:text-amber-500 disabled:opacity-20 p-1 transition-colors"
-                              title="Subir bloque"
-                            >
-                              <ArrowUp className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleMoveAssignment(assign, 'down', dayAssignments)}
-                              disabled={idx === dayAssignments.length - 1}
-                              className="text-zinc-400 hover:text-amber-400 active:text-amber-500 disabled:opacity-20 p-1 transition-colors"
-                              title="Bajar bloque"
-                            >
-                              <ArrowDown className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteAssign(assign.id)} 
-                              className="text-zinc-400 hover:text-red-400 p-1 ml-0.5 transition-colors"
-                              title="Eliminar asignación"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          {/* 🚨 BOTONERA SIEMPRE VISIBLE CON FLECHAS Y PAPELERA */}
+                          <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-800/80">
+                            <span className="text-[10px] font-bold text-zinc-500 flex items-center gap-1 uppercase">
+                              <User className="w-3 h-3" /> {assign.athletes?.full_name?.split(' ')[0]}
+                            </span>
+                            <div className="flex items-center gap-1 bg-zinc-950 px-1 py-0.5 rounded-lg border border-zinc-800">
+                              <button 
+                                onClick={() => handleMoveAssignment(assign, 'up', dayAssignments)}
+                                disabled={idx === 0}
+                                className="text-zinc-400 hover:text-amber-400 disabled:opacity-20 p-1"
+                                title="Subir bloque"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={() => handleMoveAssignment(assign, 'down', dayAssignments)}
+                                disabled={idx === dayAssignments.length - 1}
+                                className="text-zinc-400 hover:text-amber-400 disabled:opacity-20 p-1"
+                                title="Bajar bloque"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteAssign(assign.id)} 
+                                className="text-zinc-400 hover:text-red-400 p-1 ml-0.5"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
 
-                          <p className="text-[10px] font-bold text-zinc-500 flex items-center gap-1.5 uppercase mb-1">
-                            <User className="w-3 h-3" /> {assign.athletes?.full_name?.split(' ')[0]}
-                          </p>
-                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight pr-20">
+                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight">
                             <Dumbbell className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" /> 
                             {assign.routines?.name}
                           </p>
