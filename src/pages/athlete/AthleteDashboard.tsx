@@ -3,7 +3,7 @@ import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase/client';
 import { useLocation } from 'react-router-dom';
 import { Dumbbell, CheckCircle2, Flame, CalendarIcon, Scale, Clock, MessageSquare, Video, ChevronUp, ChevronDown, Trophy } from 'lucide-react';
-// 🚨 IMPORTAMOS EL MOTOR DE CONFETI
+
 import confetti from 'canvas-confetti';
 
 export function AthleteDashboard() {
@@ -17,7 +17,6 @@ export function AthleteDashboard() {
   const [loading, setLoading] = useState(true);
   const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
   
-  // 🚨 ESTADO PARA SABER SI YA TERMINÓ EL ENTRENAMIENTO
   const [workoutFinished, setWorkoutFinished] = useState(false);
 
   const localDate = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
@@ -45,7 +44,12 @@ export function AthleteDashboard() {
           const { data: checkins } = await supabase.from('weekly_checkins').select('fasting_weight, created_at').eq('athlete_id', athlete.id).order('created_at', { ascending: false }).limit(5);
           setBodyWeights(checkins || []);
 
-          const { data: assignments } = await supabase.from('athlete_routines').select('id, day_of_week, custom_exercises, routines(id, name, exercises)').eq('athlete_id', athlete.id);
+          // 🚨 CONSULTA CORREGIDA: Trae las rutinas del día respetando exactamente el order_index asignado por el Coach
+          const { data: assignments } = await supabase
+            .from('athlete_routines')
+            .select('id, day_of_week, custom_exercises, order_index, routines(id, name, exercises)')
+            .eq('athlete_id', athlete.id)
+            .order('order_index', { ascending: true, nullsFirst: false });
           
           const dayAssignments = assignments?.filter(a => Number(a.day_of_week) === targetDay) || [];
           setActiveRoutines(dayAssignments);
@@ -94,13 +98,12 @@ export function AthleteDashboard() {
     setExerciseLogs(prev => ({ ...prev, [key]: { ...prev[key], done: true } }));
   };
 
-  // 🚨 FUNCIÓN DISPARADORA DE CONFETI Y DOPAMINA
   const handleFinishWorkout = () => {
     confetti({
       particleCount: 200,
       spread: 90,
       origin: { y: 0.6 },
-      colors: ['#f59e0b', '#fbbf24', '#ffffff', '#10b981'] // Colores de tu marca (Dorado, Blanco, Esmeralda)
+      colors: ['#f59e0b', '#fbbf24', '#ffffff', '#10b981']
     });
     setWorkoutFinished(true);
   };
@@ -228,7 +231,6 @@ export function AthleteDashboard() {
             );
           })}
 
-          {/* 🚨 AQUÍ ESTÁ EL BOTÓN DORADO DE FINALIZAR */}
           <div className="pt-6">
             {!workoutFinished ? (
               <button 
