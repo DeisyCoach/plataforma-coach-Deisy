@@ -1,3 +1,4 @@
+// PRUEBA DE CAMBIO
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../providers/AuthProvider';
