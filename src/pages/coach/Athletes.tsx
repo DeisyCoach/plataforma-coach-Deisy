@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
-import { UserPlus, Pencil, Trash2, Search, Dumbbell, Utensils, Pill, PauseCircle, PlayCircle } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+import { UserPlus, Pencil, Trash2, Search, Dumbbell, Utensils, Pill, PauseCircle, PlayCircle, Key, Eye, EyeOff } from 'lucide-react';
 
 export function Athletes() {
   const [athletes, setAthletes] = useState<any[]>([]);
@@ -10,6 +11,9 @@ export function Athletes() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newFullName, setNewFullName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => { fetchAthletesAndDetails(); }, []);
 
@@ -36,34 +40,69 @@ export function Athletes() {
 
   const handleAddAthlete = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFullName || !newEmail) return alert('Llena todos los campos');
+    if (!newFullName || !newEmail || !newPassword) return alert('Por favor llena todos los campos');
+    if (newPassword.length < 6) return alert('La contraseña debe tener al menos 6 caracteres');
 
-    const { error } = await supabase.from('athletes').insert([{ full_name: newFullName, email: newEmail }]);
-    if (!error) {
-      alert('Atleta agregado correctamente');
-      setNewFullName('');
-      setNewEmail('');
-      setIsAddModalOpen(false);
-      fetchAthletesAndDetails();
-    } else {
-      alert('Error: ' + error.message);
+    setIsSubmitting(true);
+
+    try {
+      // 1. Crear un cliente secundario para no cerrar la sesión del Coach actual
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && supabaseAnonKey) {
+        const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: { persistSession: false }
+        });
+
+        // Registrar el usuario en el módulo de Autenticación de Supabase
+        const { error: authError } = await tempClient.auth.signUp({
+          email: newEmail,
+          password: newPassword,
+          options: {
+            data: {
+              full_name: newFullName,
+              role: 'athlete'
+            }
+          }
+        });
+
+        if (authError && !authError.message.includes('already registered')) {
+          console.warn('Aviso de Auth:', authError.message);
+        }
+      }
+
+      // 2. Registrar al atleta en la tabla pública
+      const { error: dbError } = await supabase.from('athletes').insert([{ full_name: newFullName, email: newEmail }]);
+
+      if (!dbError) {
+        alert(`¡Atleta creado exitosamente!\n\nEmail: ${newEmail}\nContraseña: ${newPassword}\n\nYa puede iniciar sesión.`);
+        setNewFullName('');
+        setNewEmail('');
+        setNewPassword('');
+        setIsAddModalOpen(false);
+        fetchAthletesAndDetails();
+      } else {
+        alert('Error al guardar atleta en la tabla: ' + dbError.message);
+      }
+    } catch (err: any) {
+      alert('Error inesperado: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // 🚨 FUNCIÓN MEJORADA: Limpieza en cascada para evitar el bloqueo de Supabase
   const handleDeleteAthlete = async (id: string, name: string) => {
     const confirmDelete = window.confirm(`¿Estás seguro de eliminar a ${name}? Esto borrará TODO su historial, rutinas y dietas para siempre.`);
     if (!confirmDelete) return;
 
     try {
-      // 1. Borramos todas sus dependencias primero (rutinas, dietas, suplementos, historial)
       await supabase.from('athlete_routines').delete().eq('athlete_id', id);
       await supabase.from('athlete_meals').delete().eq('athlete_id', id);
       await supabase.from('athlete_supplements').delete().eq('athlete_id', id);
       await supabase.from('workout_logs').delete().eq('athlete_id', id);
       await supabase.from('weekly_checkins').delete().eq('athlete_id', id);
 
-      // 2. Ahora sí, la base de datos nos dejará borrar al atleta sin quejarse
       const { error } = await supabase.from('athletes').delete().eq('id', id);
       
       if (!error) {
@@ -181,19 +220,75 @@ export function Athletes() {
 
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleAddAthlete} className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-sm w-full p-6 space-y-4">
-            <h3 className="font-bold text-lg text-white">Agregar Nuevo Atleta</h3>
+          <form onSubmit={handleAddAthlete} className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="font-bold text-lg text-white flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-amber-500" /> Agregar Nuevo Atleta
+            </h3>
+            
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Nombre Completo</label>
-              <input type="text" value={newFullName} onChange={e => setNewFullName(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-white" placeholder="Ej. Juan Pérez" />
+              <input 
+                type="text" 
+                value={newFullName} 
+                onChange={e => setNewFullName(e.target.value)} 
+                className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none transition-colors" 
+                placeholder="Ej. Juan Pérez" 
+                required
+              />
             </div>
+
             <div>
-              <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correo (Para que inicie sesión)</label>
-              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-white" placeholder="ejemplo@gmail.com" />
+              <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correo Electrónico</label>
+              <input 
+                type="email" 
+                value={newEmail} 
+                onChange={e => setNewEmail(e.target.value)} 
+                className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none transition-colors" 
+                placeholder="ejemplo@gmail.com" 
+                required
+              />
             </div>
-            <div className="flex gap-2 pt-2">
-              <button type="button" onClick={() => setIsAddModalOpen(false)} className="w-1/2 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800">Cancelar</button>
-              <button type="submit" className="w-1/2 py-2.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400">Guardar</button>
+
+            <div>
+              <label className="block text-xs font-bold text-amber-500 uppercase mb-1 flex items-center gap-1">
+                <Key className="w-3.5 h-3.5" /> Contraseña de Acceso
+              </label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  value={newPassword} 
+                  onChange={e => setNewPassword(e.target.value)} 
+                  className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none pr-10 transition-colors text-sm" 
+                  placeholder="Mínimo 6 caracteres (ej. Atleta2026!)" 
+                  required
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-500 mt-1">Esta es la clave con la que tu atleta iniciará sesión.</p>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-zinc-800/80">
+              <button 
+                type="button" 
+                onClick={() => setIsAddModalOpen(false)} 
+                className="w-1/2 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800 transition-colors"
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                className="w-1/2 py-2.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 transition-colors disabled:opacity-50"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Guardando...' : 'Guardar Atleta'}
+              </button>
             </div>
           </form>
         </div>
