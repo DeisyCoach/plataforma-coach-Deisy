@@ -181,7 +181,7 @@ export function Calendar() {
     fetchData();
   };
 
-  // 🚨 Filtro arreglado
+  // Filtro arreglado
   const filteredAssignments = isCoach && selectedAthleteFilter !== 'ALL' 
     ? assignments.filter(a => String(a.athlete_id) === String(selectedAthleteFilter)) 
     : assignments;
@@ -200,11 +200,18 @@ export function Calendar() {
         </div>
         {isCoach && (
           <div className="flex items-center gap-3">
+            {/* 🚨 AQUÍ ESTÁ EL SELECT DEL FILTRO YA CON FONDO OSCURO EN TODAS SUS OPCIONES */}
             <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
               <Filter className="w-4 h-4 text-amber-500 shrink-0" />
-              <select value={selectedAthleteFilter} onChange={e => setSelectedAthleteFilter(e.target.value)} className="bg-transparent text-white font-bold text-sm outline-none cursor-pointer">
-                <option value="ALL">Todos los atletas</option>
-                {athletes.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              <select 
+                value={selectedAthleteFilter} 
+                onChange={e => setSelectedAthleteFilter(e.target.value)} 
+                className="bg-zinc-900 text-white font-bold text-sm outline-none cursor-pointer"
+              >
+                <option value="ALL" className="bg-zinc-900 text-white">Todos los atletas</option>
+                {athletes.map(a => (
+                  <option key={a.id} value={a.id} className="bg-zinc-900 text-white">{a.full_name}</option>
+                ))}
               </select>
             </div>
             <button onClick={openAssignModal} className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 shrink-0 shadow-lg shadow-amber-500/20">
@@ -227,7 +234,6 @@ export function Calendar() {
                       {isCoach ? (
                         <>
                           <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-800/80">
-                            {/* 🚨 Nombre del Atleta de vuelta */}
                             <span className="text-[10px] font-bold text-zinc-400 flex items-center gap-1 uppercase truncate">
                               <User className="w-3 h-3 text-amber-500" /> 
                               {assign.athletes?.full_name ? assign.athletes.full_name.split(' ')[0] : 'Atleta'}
@@ -239,7 +245,6 @@ export function Calendar() {
                               <button onClick={() => supabase.from('athlete_routines').delete().eq('id', assign.id).then(fetchData)} className="text-zinc-400 hover:text-red-400 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </div>
-                          {/* 🚨 Nombre de la Rutina Principal */}
                           <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight">
                             <Dumbbell className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" /> 
                             {assign.routines?.name || 'Rutina Personalizada'}
@@ -351,7 +356,7 @@ export function Calendar() {
                 ))}
               </div>
 
-              {/* 🚨 INYECTOR DE EJERCICIOS EXTRA (Para combinar biseries) */}
+              {/* INYECTOR DE EJERCICIOS EXTRA (Para combinar biseries) */}
               {((isModalOpen && selectedRoutine) || isEditModalOpen) && (
                 <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 mt-6">
                   <label className="block text-xs font-black text-emerald-500 uppercase mb-2 flex items-center gap-2"><Search className="w-4 h-4"/> ¿Combinar con ejercicios de otra plantilla?</label>
