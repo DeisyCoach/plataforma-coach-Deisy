@@ -24,6 +24,7 @@ export function Calendar() {
   // Estado de Formularios
   const [selectedAthlete, setSelectedAthlete] = useState('');
   const [selectedDay, setSelectedDay] = useState(1);
+  const [selectedBaseRoutine, setSelectedBaseRoutine] = useState(''); // 🚨 Vuelve la Rutina Base
   const [selectedRoutineForAdd, setSelectedRoutineForAdd] = useState('');
   const [activeExercises, setActiveExercises] = useState<any[]>([]);
 
@@ -34,14 +35,17 @@ export function Calendar() {
 
   useEffect(() => { fetchData(); }, [user]);
 
+  // 🚨 Consultas separadas para asegurar que los nombres carguen bien
   const fetchData = async () => {
     setLoading(true);
     if (isCoach) {
-      const [{ data: aData }, { data: rData }, { data: assignData }] = await Promise.all([
-        supabase.from('athletes').select('*').order('full_name'),
-        supabase.from('routines').select('*').order('name'),
-        supabase.from('athlete_routines').select('*, athletes(full_name), routines(name)').order('order_index', { ascending: true, nullsFirst: false })
-      ]);
+      const { data: aData } = await supabase.from('athletes').select('*').order('full_name');
+      const { data: rData } = await supabase.from('routines').select('*').order('name');
+      const { data: assignData } = await supabase
+        .from('athlete_routines')
+        .select('*, athletes(full_name), routines(name)')
+        .order('order_index', { ascending: true, nullsFirst: false });
+        
       setAthletes(aData || []);
       setRoutines(rData || []);
       setAssignments(assignData || []);
@@ -56,7 +60,14 @@ export function Calendar() {
     setLoading(false);
   };
 
-  // --- CONTROL DE EJERCICIOS (NUEVO O EDICIÓN) ---
+  const openAssignModal = () => {
+    setSelectedAthlete(selectedAthleteFilter !== 'ALL' ? selectedAthleteFilter : '');
+    setSelectedBaseRoutine('');
+    setSelectedRoutineForAdd('');
+    setActiveExercises([]);
+    setIsModalOpen(true);
+  };
+
   const handleAddExerciseFromMaster = () => {
     if (!selectedRoutineForAdd) return;
     const routine = routines.find(r => r.id === selectedRoutineForAdd);
@@ -82,14 +93,15 @@ export function Calendar() {
     });
   };
 
-  // --- GUARDAR ASIGNACIONES ---
   const handleSaveNew = async () => {
     if (!selectedAthlete || activeExercises.length === 0) return alert('Selecciona un atleta y agrega ejercicios.');
-    const nextOrder = assignments.filter(a => Number(a.day_of_week) === selectedDay && a.athlete_id === selectedAthlete).length;
+    if (!selectedBaseRoutine) return alert('Selecciona una Rutina Base para darle nombre a este bloque.');
+    
+    const nextOrder = assignments.filter(a => Number(a.day_of_week) === selectedDay && String(a.athlete_id) === String(selectedAthlete)).length;
 
     const { error } = await supabase.from('athlete_routines').insert([{ 
       athlete_id: selectedAthlete, 
-      routine_id: routines[0]?.id || null, // Se asigna la primera por defecto como base
+      routine_id: selectedBaseRoutine, 
       day_of_week: selectedDay,
       custom_exercises: activeExercises,
       order_index: nextOrder
@@ -110,7 +122,6 @@ export function Calendar() {
     } else alert('Error: ' + error.message);
   };
 
-  // --- REORDENAR Y ELIMINAR BLOQUES ---
   const handleMoveBlock = async (assign: any, direction: 'up' | 'down', dayAssignments: any[]) => {
     const currentIndex = dayAssignments.findIndex(a => a.id === assign.id);
     if (currentIndex === -1) return;
@@ -125,7 +136,10 @@ export function Calendar() {
     fetchData();
   };
 
-  const filteredAssignments = isCoach && selectedAthleteFilter !== 'ALL' ? assignments.filter(a => a.athlete_id === selectedAthleteFilter) : assignments;
+  // 🚨 Filtro corregido (compara strings exactos)
+  const filteredAssignments = isCoach && selectedAthleteFilter !== 'ALL' 
+    ? assignments.filter(a => String(a.athlete_id) === String(selectedAthleteFilter)) 
+    : assignments;
 
   if (loading) return <div className="text-amber-400 font-bold p-8">Cargando modo PRO...</div>;
 
@@ -148,14 +162,13 @@ export function Calendar() {
                 {athletes.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
               </select>
             </div>
-            <button onClick={() => { setSelectedAthlete(''); setActiveExercises([]); setIsModalOpen(true); }} className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 px-4 rounded-xl flex items-center gap-2">
+            <button onClick={openAssignModal} className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 px-4 rounded-xl flex items-center gap-2">
               <Plus className="w-5 h-5" /> Nueva Asignación
             </button>
           </div>
         )}
       </div>
 
-      {/* CALENDARIO GRID */}
       <div className="grid grid-cols-1 md:grid-cols-7 gap-4 overflow-x-auto pb-4">
         {days.map(day => {
           const dayAssignments = filteredAssignments.filter(a => Number(a.day_of_week) === day.id);
@@ -169,7 +182,11 @@ export function Calendar() {
                       {isCoach ? (
                         <>
                           <div className="flex items-center justify-between mb-2 pb-2 border-b border-zinc-800/80">
-                            <span className="text-[10px] font-bold text-zinc-500 flex items-center gap-1 uppercase truncate"><User className="w-3 h-3" /> {assign.athletes?.full_name?.split(' ')[0]}</span>
+                            {/* 🚨 El nombre del atleta vuelve a aparecer */}
+                            <span className="text-[10px] font-bold text-zinc-400 flex items-center gap-1 uppercase truncate">
+                              <User className="w-3 h-3 text-amber-500" /> 
+                              {assign.athletes?.full_name ? assign.athletes.full_name.split(' ')[0] : 'Atleta'}
+                            </span>
                             <div className="flex gap-1 bg-zinc-950 px-1 py-0.5 rounded-lg border border-zinc-800">
                               <button onClick={() => { setEditingAssignment(assign); setActiveExercises(typeof assign.custom_exercises === 'string' ? JSON.parse(assign.custom_exercises) : (assign.custom_exercises || [])); setIsEditModalOpen(true); }} className="text-zinc-400 hover:text-amber-400 p-1"><Pencil className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleMoveBlock(assign, 'up', dayAssignments)} disabled={idx===0} className="text-zinc-400 hover:text-amber-400 p-1 disabled:opacity-30"><ArrowUp className="w-3.5 h-3.5" /></button>
@@ -177,11 +194,15 @@ export function Calendar() {
                               <button onClick={() => supabase.from('athlete_routines').delete().eq('id', assign.id).then(fetchData)} className="text-zinc-400 hover:text-red-400 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </div>
-                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight"><Dumbbell className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" /> Bloque de Entrenamiento</p>
+                          {/* 🚨 El nombre de la rutina base vuelve a aparecer */}
+                          <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight">
+                            <Dumbbell className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" /> 
+                            {assign.routines?.name || 'Bloque Mixto'}
+                          </p>
                         </>
                       ) : (
                         <Link to="/athlete/dashboard" state={{ selectedDay: day.id }} className="block">
-                          <p className="text-sm font-bold text-white flex gap-1.5"><Dumbbell className="w-3.5 h-3.5 text-amber-400 mt-0.5" /> Entrenamiento Asignado</p>
+                          <p className="text-sm font-bold text-white flex gap-1.5 leading-tight"><Dumbbell className="w-3.5 h-3.5 text-amber-400 mt-0.5" /> {assign.routines?.name || 'Entrenamiento Asignado'}</p>
                           <div className="mt-3 pt-2 border-t border-zinc-800 text-xs font-bold text-amber-500 flex justify-between">Ir a entrenar <ArrowRight className="w-3.5 h-3.5" /></div>
                         </Link>
                       )}
@@ -194,7 +215,6 @@ export function Calendar() {
         })}
       </div>
 
-      {/* MODAL MAESTRO (Sirve para Crear y Editar) */}
       {(isModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-2xl w-full p-6 flex flex-col max-h-[90vh]">
@@ -222,19 +242,29 @@ export function Calendar() {
                 </div>
               )}
 
-              {/* IMPORTADOR DE EJERCICIOS (Soporta múltiples rutinas máster) */}
-              <div className="bg-zinc-900/40 p-4 rounded-xl border border-zinc-800/50">
-                <label className="block text-xs font-black text-amber-500 uppercase mb-2 flex items-center gap-2"><Search className="w-4 h-4"/> Inyectar ejercicios desde Plantillas</label>
-                <div className="flex gap-2">
-                  <select value={selectedRoutineForAdd} onChange={e => setSelectedRoutineForAdd(e.target.value)} className="flex-1 px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-white outline-none">
-                    <option value="">-- Selecciona una rutina máster --</option>
+              {/* 🚨 Selector de la Rutina Base (Para el título de la tarjeta) */}
+              {isModalOpen && (
+                <div>
+                  <label className="block text-xs font-black text-amber-500 uppercase mb-1">Nombre / Rutina Base del Bloque</label>
+                  <p className="text-[10px] text-zinc-500 mb-2">Este será el título que verá el atleta (Ej: Cuádriceps).</p>
+                  <select value={selectedBaseRoutine} onChange={e => setSelectedBaseRoutine(e.target.value)} className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white outline-none focus:border-amber-500">
+                    <option value="">-- Selecciona el título principal --</option>
                     {routines.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
-                  <button onClick={handleAddExerciseFromMaster} className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 rounded-lg text-sm transition-all">Añadir Todos</button>
+                </div>
+              )}
+
+              <div className="bg-zinc-900/40 p-4 rounded-xl border border-zinc-800/50 mt-4">
+                <label className="block text-xs font-black text-emerald-500 uppercase mb-2 flex items-center gap-2"><Search className="w-4 h-4"/> Inyectar ejercicios desde Plantillas</label>
+                <div className="flex gap-2">
+                  <select value={selectedRoutineForAdd} onChange={e => setSelectedRoutineForAdd(e.target.value)} className="flex-1 px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-white outline-none">
+                    <option value="">-- Selecciona de dónde importar ejercicios --</option>
+                    {routines.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                  <button onClick={handleAddExerciseFromMaster} className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold px-5 rounded-lg text-sm transition-all">Añadir Todos</button>
                 </div>
               </div>
 
-              {/* LISTA DE EJERCICIOS CONFIGURABLES */}
               <div className="space-y-3 mt-4">
                 {activeExercises.map((ex, idx) => (
                   <div key={idx} className={`p-4 rounded-xl border transition-all ${ex.group_type !== 'normal' ? 'bg-amber-950/10 border-amber-500/30' : 'bg-zinc-900 border-zinc-800'}`}>
@@ -247,7 +277,6 @@ export function Calendar() {
                       </div>
                     </div>
 
-                    {/* ZONA DE AGRUPACIÓN (BISERIES) */}
                     <div className="grid grid-cols-2 gap-3 mb-3 bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
                       <div>
                         <label className="block text-[10px] font-bold text-amber-500 uppercase mb-1 flex items-center gap-1"><Layers className="w-3 h-3" /> Formato</label>
