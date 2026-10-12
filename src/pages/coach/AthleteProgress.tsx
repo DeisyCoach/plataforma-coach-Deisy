@@ -1,145 +1,162 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../providers/AuthProvider';
-import { TrendingUp, Dumbbell } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TrendingUp, User, Filter, Dumbbell } from 'lucide-react';
 
 export function AthleteProgress() {
   const { user } = useAuth();
   const isCoach = user?.email === 'coach@plataforma.com';
-
-  const [athletes, setAthletes] = useState<any[]>([]);
-  const [selectedAthlete, setSelectedAthlete] = useState('');
+  
   const [logs, setLogs] = useState<any[]>([]);
+  const [athletes, setAthletes] = useState<any[]>([]);
+  const [routines, setRoutines] = useState<any[]>([]);
+  const [selectedAthlete, setSelectedAthlete] = useState('');
+  const [selectedRoutine, setSelectedRoutine] = useState('ALL');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchInitialData();
+    fetchData();
   }, [user]);
 
-  const fetchInitialData = async () => {
+  const fetchData = async () => {
     setLoading(true);
+    let targetAthleteId = '';
+
+    // Cargar Rutinas Maestras para el filtro
+    const { data: routinesData } = await supabase.from('routines').select('*').order('name');
+    if (routinesData) setRoutines(routinesData);
+
     if (isCoach) {
-      // Si es Coach, trae a todos los atletas para el menú desplegable
-      const { data } = await supabase.from('athletes').select('*').order('full_name');
-      setAthletes(data || []);
-      if (data && data.length > 0) {
-        setSelectedAthlete(data[0].id);
-        fetchLogs(data[0].id);
+      const { data: athletesData } = await supabase.from('athletes').select('*').order('full_name');
+      setAthletes(athletesData || []);
+      if (athletesData && athletesData.length > 0) {
+        targetAthleteId = athletesData[0].id;
+        setSelectedAthlete(targetAthleteId);
       }
     } else {
-      // Si es Atleta, busca SOLO su ID y bloquea el menú
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('email', user?.email).single();
-      if (athlete) {
-        fetchLogs(athlete.id);
-      }
+      const cleanEmail = user?.email?.trim().toLowerCase();
+      const { data: athlete } = await supabase.from('athletes').select('id').ilike('email', cleanEmail || '').single();
+      if (athlete) targetAthleteId = athlete.id;
+    }
+
+    if (targetAthleteId) {
+      await fetchLogsForAthlete(targetAthleteId);
     }
     setLoading(false);
   };
 
-  const fetchLogs = async (athleteId: string) => {
-    const { data } = await supabase.from('workout_logs')
+  const fetchLogsForAthlete = async (athleteId: string) => {
+    const { data } = await supabase
+      .from('workout_logs')
       .select('*')
       .eq('athlete_id', athleteId)
-      .order('created_at', { ascending: true }); // Ascendente para que la gráfica avance de izquierda a derecha
+      .order('created_at', { ascending: true });
     setLogs(data || []);
   };
 
-  const handleAthleteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = e.target.value;
-    setSelectedAthlete(id);
-    fetchLogs(id);
+  // Filtrar logs por Rutina Maestra
+  const getFilteredLogs = () => {
+    if (selectedRoutine === 'ALL') return logs;
+    
+    const routine = routines.find(r => r.id === selectedRoutine);
+    if (!routine || !routine.exercises) return [];
+
+    const parsedExercises = typeof routine.exercises === 'string' ? JSON.parse(routine.exercises) : routine.exercises;
+    // Limpiamos los nombres para evitar errores de espacios
+    const validExerciseNames = parsedExercises.map((ex: any) => (ex.name || '').trim().toLowerCase());
+
+    return logs.filter(log => validExerciseNames.includes((log.exercise_name || '').trim().toLowerCase()));
   };
 
-  // Agrupamos los datos por cada ejercicio para crear múltiples gráficas
-  const groupedLogs = logs.reduce((acc: any, log: any) => {
-    if (!acc[log.exercise_name]) acc[log.exercise_name] = [];
-    
-    const dateObj = new Date(log.created_at);
-    const dateStr = `${dateObj.getDate()}/${dateObj.getMonth() + 1}`; // Formato corto: 15/8
-    
-    acc[log.exercise_name].push({
-      date: dateStr,
-      weight: log.weight_used,
-      reps: log.reps_done,
-      fullDate: dateObj.toLocaleDateString()
-    });
+  // Agrupar los logs filtrados por nombre de ejercicio
+  const groupedLogs = getFilteredLogs().reduce((acc: any, log: any) => {
+    const key = (log.exercise_name || '').trim();
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(log);
     return acc;
   }, {});
 
-  if (loading) return <div className="text-amber-400 font-bold p-8">Cargando progreso...</div>;
-
   return (
-    <div className="space-y-8">
-      {/* CABECERA (Adaptable si es Coach o Atleta) */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-800 pb-4">
-        <div>
-          <h2 className="text-2xl font-black text-white flex items-center gap-2">
-            <TrendingUp className="w-7 h-7 text-amber-400" />
-            {isCoach ? 'Progresión de Cargas' : 'Mi Evolución de Cargas'}
-          </h2>
-          <p className="text-zinc-400 text-sm mt-1">
-            {isCoach ? 'Historial gráfico de pesos registrados por tus atletas.' : 'Tus récords y avances en el tiempo.'}
-          </p>
-        </div>
-        
-        {/* SELECTOR (Solo visible para el Coach) */}
+    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+      <div className="border-b border-zinc-800 pb-4">
+        <h2 className="text-2xl font-black text-white flex items-center gap-2 mb-2">
+          <TrendingUp className="w-7 h-7 text-amber-500" /> Mi Evolución de Cargas
+        </h2>
+        <p className="text-zinc-400 text-sm">Tus récords y avances en el tiempo por rutina.</p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
         {isCoach && (
-          <div className="w-full md:w-64">
-            <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Seleccionar Atleta</label>
+          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 flex-1">
+            <User className="w-4 h-4 text-amber-500" />
             <select 
               value={selectedAthlete} 
-              onChange={handleAthleteChange} 
-              className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-amber-500"
+              onChange={(e) => { setSelectedAthlete(e.target.value); fetchLogsForAthlete(e.target.value); }} 
+              className="bg-transparent text-white font-bold text-sm outline-none w-full"
             >
-               {athletes.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              {athletes.map(a => <option key={a.id} value={a.id} className="bg-zinc-900">{a.full_name}</option>)}
             </select>
           </div>
         )}
+
+        {/* 🚨 NUEVO FILTRO POR RUTINA MAESTRA */}
+        <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 flex-1 shadow-lg shadow-amber-500/5">
+          <Filter className="w-4 h-4 text-emerald-500" />
+          <select 
+            value={selectedRoutine} 
+            onChange={(e) => setSelectedRoutine(e.target.value)} 
+            className="bg-transparent text-white font-bold text-sm outline-none w-full"
+          >
+            <option value="ALL" className="bg-zinc-900">Ver todos los ejercicios</option>
+            {routines.map(r => <option key={r.id} value={r.id} className="bg-zinc-900">Rutina: {r.name}</option>)}
+          </select>
+        </div>
       </div>
 
-      {/* ÁREA DE GRÁFICAS */}
-      <div className="space-y-8">
-        {Object.keys(groupedLogs).length === 0 ? (
-           <div className="bg-zinc-950 p-10 rounded-2xl border border-zinc-800 text-center text-zinc-500">
-             Aún no hay registros de entrenamiento guardados.
-           </div>
-        ) : (
-           Object.keys(groupedLogs).map(exercise => (
-             <div key={exercise} className="bg-zinc-950 p-4 md:p-6 rounded-2xl border border-zinc-800 shadow-lg">
-                <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2 border-b border-zinc-800/50 pb-2">
-                  <Dumbbell className="text-amber-500 w-5 h-5" /> {exercise}
+      {loading ? (
+        <p className="text-amber-500 font-bold">Cargando métricas...</p>
+      ) : Object.keys(groupedLogs).length === 0 ? (
+        <div className="bg-zinc-950 p-8 rounded-2xl border border-zinc-800 text-center">
+          <Dumbbell className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+          <p className="text-zinc-500">No hay registros de cargas para esta selección.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(groupedLogs).map(([exerciseName, exerciseLogs]: [string, any]) => {
+            const maxWeight = Math.max(...exerciseLogs.map((l: any) => l.weight_used || 0));
+            return (
+              <div key={exerciseName} className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800 shadow-xl transition-transform hover:scale-[1.01]">
+                <h3 className="font-black text-amber-500 text-lg flex items-center gap-2 mb-6">
+                  <Dumbbell className="w-5 h-5" /> {exerciseName}
                 </h3>
                 
-                {/* GRÁFICA DE LÍNEAS */}
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={groupedLogs[exercise]} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                      <XAxis dataKey="date" stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
-                      <YAxis stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', color: '#fff' }}
-                        itemStyle={{ color: '#f59e0b', fontWeight: 'bold' }}
-                        labelStyle={{ color: '#a1a1aa', marginBottom: '4px', fontSize: '12px' }}
-                        formatter={(value: any, name: any, props: any) => [`${value} kg  (${props.payload.reps} reps)`, 'Levantamiento']}
-                        labelFormatter={(label, payloads) => payloads.length > 0 ? payloads[0].payload.fullDate : label}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="weight" 
-                        stroke="#f59e0b" 
-                        strokeWidth={3} 
-                        dot={{ r: 4, fill: '#09090b', stroke: '#f59e0b', strokeWidth: 2 }} 
-                        activeDot={{ r: 6, fill: '#f59e0b' }} 
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                {/* Minigráfica Visual */}
+                <div className="h-32 flex items-end gap-2 mt-4 pt-4 border-t border-zinc-800/50">
+                  {exerciseLogs.map((log: any, i: number) => {
+                    const heightPercentage = maxWeight > 0 ? ((log.weight_used || 0) / maxWeight) * 100 : 0;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col justify-end items-center group relative min-w-[30px]">
+                        {/* Tooltip Hover */}
+                        <div className="opacity-0 group-hover:opacity-100 absolute -top-12 bg-zinc-800 text-white text-[10px] p-2 rounded-lg pointer-events-none transition-opacity whitespace-nowrap z-10 border border-zinc-700">
+                          <span className="font-bold text-amber-400">{log.weight_used} kg</span> x {log.reps_done} reps<br/>
+                          <span className="text-zinc-400">{new Date(log.created_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                        <div 
+                          className="w-full bg-gradient-to-t from-amber-600/20 to-amber-500 rounded-t-sm transition-all hover:brightness-125" 
+                          style={{ height: `${Math.max(heightPercentage, 5)}%` }}
+                        ></div>
+                        <span className="text-[9px] text-zinc-500 mt-2 font-bold rotate-45 origin-left">
+                          {new Date(log.created_at).toLocaleDateString('es-ES', { month: 'numeric', day: 'numeric' })}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-             </div>
-           ))
-        )}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

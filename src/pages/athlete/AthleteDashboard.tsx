@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase/client';
 import { useLocation } from 'react-router-dom';
-import { Dumbbell, CheckCircle2, Flame, CalendarIcon, Scale, Clock, MessageSquare, Video, ChevronUp, ChevronDown, Trophy, Layers, Zap } from 'lucide-react';
+import { Dumbbell, CheckCircle2, Flame, CalendarIcon, Clock, MessageSquare, Video, ChevronUp, ChevronDown, Trophy, Layers, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export function AthleteDashboard() {
@@ -12,7 +12,6 @@ export function AthleteDashboard() {
   const [activeRoutines, setActiveRoutines] = useState<any[]>([]);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, { weight: string; reps: string; done: boolean }>>({});
   const [pastRecords, setPastRecords] = useState<Record<string, { weight: number; reps: number }>>({});
-  const [bodyWeights, setBodyWeights] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedVideo, setExpandedVideo] = useState<string | null>(null);
   const [workoutFinished, setWorkoutFinished] = useState(false);
@@ -37,9 +36,6 @@ export function AthleteDashboard() {
         setAthleteData(athlete);
 
         if (athlete) {
-          const { data: checkins } = await supabase.from('weekly_checkins').select('fasting_weight, created_at').eq('athlete_id', athlete.id).order('created_at', { ascending: false }).limit(5);
-          setBodyWeights(checkins || []);
-
           const { data: assignments } = await supabase.from('athlete_routines').select('id, day_of_week, custom_exercises, order_index, routines(id, name)').eq('athlete_id', athlete.id).order('order_index', { ascending: true, nullsFirst: false });
           const dayAssignments = assignments?.filter(a => Number(a.day_of_week) === targetDay) || [];
           setActiveRoutines(dayAssignments);
@@ -72,8 +68,11 @@ export function AthleteDashboard() {
     const logData = exerciseLogs[key];
     if (!athleteData) return;
     await supabase.from('workout_logs').insert([{
-      athlete_id: athleteData.id, routine_id: assignmentId, exercise_name: exercise.name,
-      weight_used: parseFloat(logData.weight || '0'), reps_done: parseInt(logData.reps || '0')
+      athlete_id: athleteData.id, 
+      routine_id: assignmentId, 
+      exercise_name: (exercise.name || '').trim(), // 🚨 .trim() APLICADO AQUÍ PARA EVITAR ERRORES DE GUARDADO
+      weight_used: parseFloat(logData.weight || '0'), 
+      reps_done: parseInt(logData.reps || '0')
     }]);
     setExerciseLogs(prev => ({ ...prev, [key]: { ...prev[key], done: true } }));
   };
@@ -83,19 +82,16 @@ export function AthleteDashboard() {
     setWorkoutFinished(true);
   };
 
-  // 🚨 Función para agrupar ejercicios por Biserie/Superserie
+  // Función para agrupar ejercicios por Biserie/Superserie
   const groupExercises = (exercises: any[]) => {
     const grouped: any[] = [];
     let currentGroup: any = null;
 
     exercises.forEach((ex, index) => {
-      // Si el ejercicio es parte de un grupo (biserie, superserie, etc.)
       if (ex.group_type && ex.group_type !== 'normal') {
-        // Si ya estamos en un grupo y la etiqueta coincide (Ej: A1 == A1), lo añadimos al grupo actual
         if (currentGroup && currentGroup.tag === ex.group_tag && currentGroup.type === ex.group_type) {
           currentGroup.items.push({ ...ex, originalIndex: index });
         } else {
-          // Si es un grupo nuevo, cerramos el anterior (si existe) y creamos uno nuevo
           if (currentGroup) grouped.push(currentGroup);
           currentGroup = {
             isGroup: true,
@@ -105,7 +101,6 @@ export function AthleteDashboard() {
           };
         }
       } else {
-        // Si el ejercicio es 'normal'
         if (currentGroup) {
           grouped.push(currentGroup);
           currentGroup = null;
@@ -138,25 +133,11 @@ export function AthleteDashboard() {
         </div>
       </div>
 
-      {bodyWeights.length > 0 && (
-        <div className="bg-zinc-950 rounded-2xl border border-zinc-800 p-4">
-          <h3 className="font-bold text-white text-sm flex items-center gap-2 mb-3"><Scale className="w-4 h-4 text-emerald-400"/> Tu Evolución de Peso en Ayunas</h3>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {bodyWeights.map((bw, i) => (
-              <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 min-w-[100px] text-center">
-                <p className="text-emerald-400 font-black text-lg">{bw.fasting_weight} <span className="text-xs">kg</span></p>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase">{new Date(bw.created_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric'})}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {activeRoutines.length > 0 ? (
         <div className="space-y-10">
           {activeRoutines.map((assignment, bIdx) => {
             const rawExercises = typeof assignment.custom_exercises === 'string' ? JSON.parse(assignment.custom_exercises) : (assignment.custom_exercises || []);
-            const groupedExercises = groupExercises(rawExercises); // 🚨 Agrupamos los ejercicios aquí
+            const groupedExercises = groupExercises(rawExercises);
 
             return (
               <div key={assignment.id} className="space-y-4">
