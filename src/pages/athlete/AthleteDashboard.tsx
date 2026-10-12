@@ -36,11 +36,20 @@ export function AthleteDashboard() {
         setAthleteData(athlete);
 
         if (athlete) {
-          const { data: assignments } = await supabase.from('athlete_routines').select('id, day_of_week, custom_exercises, order_index, routines(id, name)').eq('athlete_id', athlete.id).order('order_index', { ascending: true, nullsFirst: false });
+          const { data: assignments } = await supabase.from('athlete_routines')
+            .select('id, day_of_week, custom_exercises, order_index, routines(id, name)')
+            .eq('athlete_id', athlete.id)
+            .order('order_index', { ascending: true, nullsFirst: false });
+            
           const dayAssignments = assignments?.filter(a => Number(a.day_of_week) === targetDay) || [];
           setActiveRoutines(dayAssignments);
 
-          const { data: pastLogs } = await supabase.from('workout_logs').select('exercise_name, weight_used, reps_done').eq('athlete_id', athlete.id).order('created_at', { ascending: false });
+          // Cargar historial ordenado del más reciente al más antiguo
+          const { data: pastLogs } = await supabase.from('workout_logs')
+            .select('exercise_name, weight_used, reps_done, created_at')
+            .eq('athlete_id', athlete.id)
+            .order('created_at', { ascending: false });
+
           const initialLogs: any = {};
           const records: any = {};
 
@@ -49,32 +58,68 @@ export function AthleteDashboard() {
              parsed.forEach((ex: any, i: number) => {
                 const compositeKey = `${assign.id}-${ex.id || i}`;
                 initialLogs[compositeKey] = { weight: '', reps: ex.reps || '', done: false };
-                const lastLog = pastLogs?.find(log => log.exercise_name === ex.name);
-                if (lastLog) records[ex.name] = { weight: lastLog.weight_used, reps: lastLog.reps_done };
+                
+                // Normalización estricta para emparejar historial
+                const cleanExName = (ex.name || '').trim().toLowerCase();
+                const lastLog = pastLogs?.find(log => (log.exercise_name || '').trim().toLowerCase() === cleanExName);
+                
+                if (lastLog) {
+                  records[cleanExName] = { weight: lastLog.weight_used, reps: lastLog.reps_done };
+                }
              });
           });
+          
           setExerciseLogs(initialLogs);
           setPastRecords(records);
         }
-      } catch (error) { console.error(error); } finally { setLoading(false); }
+      } catch (error) { 
+        console.error("Error cargando portal:", error); 
+      } finally { 
+        setLoading(false); 
+      }
     };
     fetchPortalData();
   }, [user, targetDay]);
 
-  const handleLogChange = (key: string, field: 'weight'|'reps', value: string) => setExerciseLogs(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  const handleLogChange = (key: string, field: 'weight'|'reps', value: string) => {
+    setExerciseLogs(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  };
 
   const saveLog = async (assignmentId: string, exercise: any, index: number) => {
     const key = `${assignmentId}-${exercise.id || index}`;
     const logData = exerciseLogs[key];
+    
     if (!athleteData) return;
-    await supabase.from('workout_logs').insert([{
+
+    // 1. Limpieza de datos antes de enviar
+    const cleanExName = (exercise.name || '').trim();
+    const cleanKey = cleanExName.toLowerCase();
+    const weightNum = parseFloat(logData.weight || '0');
+    const repsNum = parseInt(logData.reps || '0');
+
+    // 2. Inserción en base de datos
+    const { error } = await supabase.from('workout_logs').insert([{
       athlete_id: athleteData.id, 
       routine_id: assignmentId, 
-      exercise_name: (exercise.name || '').trim(), // 🚨 .trim() APLICADO AQUÍ PARA EVITAR ERRORES DE GUARDADO
-      weight_used: parseFloat(logData.weight || '0'), 
-      reps_done: parseInt(logData.reps || '0')
+      exercise_name: cleanExName, 
+      weight_used: weightNum, 
+      reps_done: repsNum
     }]);
-    setExerciseLogs(prev => ({ ...prev, [key]: { ...prev[key], done: true } }));
+
+    if (!error) {
+      // 3. Optimistic UI Update: Reflejar cambios visuales instantáneamente
+      setExerciseLogs(prev => ({ 
+        ...prev, 
+        [key]: { ...prev[key], done: true } 
+      }));
+      
+      setPastRecords(prev => ({
+        ...prev,
+        [cleanKey]: { weight: weightNum, reps: repsNum }
+      }));
+    } else {
+      console.error("Error guardando progreso:", error);
+    }
   };
 
   const handleFinishWorkout = () => {
@@ -82,7 +127,6 @@ export function AthleteDashboard() {
     setWorkoutFinished(true);
   };
 
-  // Función para agrupar ejercicios por Biserie/Superserie
   const groupExercises = (exercises: any[]) => {
     const grouped: any[] = [];
     let currentGroup: any = null;
@@ -109,14 +153,11 @@ export function AthleteDashboard() {
       }
     });
 
-    if (currentGroup) {
-      grouped.push(currentGroup);
-    }
-
+    if (currentGroup) grouped.push(currentGroup);
     return grouped;
   };
 
-  if (loading) return <div className="text-center py-12 text-amber-400 font-bold">Cargando portal...</div>;
+  if (loading) return <div className="text-center py-12 text-amber-400 font-black tracking-widest uppercase">Cargando portal...</div>;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-12">
@@ -145,11 +186,10 @@ export function AthleteDashboard() {
                 
                 {groupedExercises.map((groupOrEx: any, renderIndex: number) => {
                   
-                  // --- RENDERIZAR GRUPO DE EJERCICIOS (Biserie/Superserie) ---
+                  // --- GRUPO DE EJERCICIOS (Biserie/Superserie) ---
                   if (groupOrEx.isGroup) {
                     return (
                       <div key={`group-${renderIndex}`} className="rounded-xl border border-amber-500/40 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.08)] overflow-hidden">
-                        {/* Cinta de encabezado del grupo */}
                         <div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 flex justify-between items-center">
                           <span className="text-xs font-black text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
                             {groupOrEx.type === 'biserie' && <Flame className="w-4 h-4" />}
@@ -160,13 +200,13 @@ export function AthleteDashboard() {
                           {groupOrEx.tag && <span className="bg-amber-500 text-black px-2.5 py-1 rounded text-xs font-black">{groupOrEx.tag}</span>}
                         </div>
 
-                        {/* Iterar sobre los ejercicios del grupo */}
                         <div className="p-4 space-y-6">
                           {groupOrEx.items.map((exercise: any, idx: number) => {
                             const originalIndex = exercise.originalIndex;
                             const key = `${assignment.id}-${exercise.id || originalIndex}`;
                             const currentLog = exerciseLogs[key] || { weight: '', reps: '', done: false };
-                            const pastRecord = pastRecords[exercise.name];
+                            const cleanKey = (exercise.name || '').trim().toLowerCase();
+                            const pastRecord = pastRecords[cleanKey];
                             const videoEmbed = getYoutubeEmbedUrl(exercise.videoUrl || exercise.link || '');
                             const isVideoOpen = expandedVideo === key;
 
@@ -205,7 +245,7 @@ export function AthleteDashboard() {
                                 </div>
 
                                 {pastRecord && !currentLog.done && (
-                                  <div className="mb-4 bg-zinc-900/80 border border-zinc-800 p-3 rounded-lg text-xs text-zinc-400 flex items-center gap-2">
+                                  <div className="mb-4 bg-zinc-900/80 border border-zinc-800 p-3 rounded-lg text-xs text-zinc-400 flex items-center gap-2 transition-all">
                                     <Dumbbell className="w-4 h-4 text-amber-500" />
                                     Último registro: <b className="text-white text-sm">{pastRecord.weight} kg</b> x {pastRecord.reps} reps
                                   </div>
@@ -234,12 +274,13 @@ export function AthleteDashboard() {
                     );
                   }
 
-                  // --- RENDERIZAR EJERCICIO INDIVIDUAL ---
+                  // --- EJERCICIO INDIVIDUAL ---
                   const exercise = groupOrEx;
                   const originalIndex = exercise.originalIndex;
                   const key = `${assignment.id}-${exercise.id || originalIndex}`;
                   const currentLog = exerciseLogs[key] || { weight: '', reps: '', done: false };
-                  const pastRecord = pastRecords[exercise.name];
+                  const cleanKey = (exercise.name || '').trim().toLowerCase();
+                  const pastRecord = pastRecords[cleanKey];
                   const videoEmbed = getYoutubeEmbedUrl(exercise.videoUrl || exercise.link || '');
                   const isVideoOpen = expandedVideo === key;
 
@@ -278,7 +319,7 @@ export function AthleteDashboard() {
                       </div>
 
                       {pastRecord && !currentLog.done && (
-                        <div className="mb-4 bg-zinc-900/80 border border-zinc-800 p-3 rounded-lg text-xs text-zinc-400 flex items-center gap-2">
+                        <div className="mb-4 bg-zinc-900/80 border border-zinc-800 p-3 rounded-lg text-xs text-zinc-400 flex items-center gap-2 transition-all">
                           <Dumbbell className="w-4 h-4 text-amber-500" />
                           Último registro: <b className="text-white text-sm">{pastRecord.weight} kg</b> x {pastRecord.reps} reps
                         </div>
