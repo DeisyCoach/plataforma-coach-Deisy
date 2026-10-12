@@ -63,23 +63,21 @@ export function Nutrition() {
       </div>
       <div className="space-y-6">
         
-        {/* 👇 CAJA DE RAYOS X TEMPORAL 👇 */}
-        <div className="bg-red-500/20 border border-red-500 p-4 rounded-xl text-white font-mono text-[10px] break-words">
-          DEBUG DATOS: {JSON.stringify(meals)}
-        </div>
-        {/* 👆 FIN CAJA RAYOS X 👆 */}
-
         {meals.map((meal: any, idx: number) => {
-          const mealName = meal.name || meal.type || meal.title || `Comida ${idx + 1}`;
-          const mealContent = meal.items || meal.alimentos || meal.foods || meal.description || meal.content || '';
-          const style = getMealStyle(mealName);
+          // 🚨 AHORA LEE TUS DATOS VIEJOS ("time", "details") Y LOS NUEVOS ("name", "items")
+          const mealTitle = meal.time || meal.name || `Comida ${idx + 1}`;
+          const mealSubtitle = meal.time ? meal.name : ''; 
+          const mealContent = meal.details || meal.items || '';
+          
+          const style = getMealStyle(mealTitle);
           
           return (
             <div key={idx} className={`rounded-3xl border ${style.color} overflow-hidden shadow-lg transition-transform hover:scale-[1.01]`}>
               <div className="bg-zinc-900/80 px-6 py-4 border-b border-zinc-800/50 flex items-center gap-4">
                 <div className="p-3 bg-zinc-950 rounded-2xl shadow-inner border border-zinc-800/50">{style.icon}</div>
-                <h3 className="text-xl font-black text-white uppercase tracking-wider">{mealName}</h3>
-                {meal.dish && <span className="text-sm text-zinc-400 font-bold ml-2">({meal.dish})</span>}
+                <h3 className="text-xl font-black text-white uppercase tracking-wider">
+                  {mealTitle} {mealSubtitle && <span className="text-sm text-zinc-500 ml-2">({mealSubtitle})</span>}
+                </h3>
               </div>
               <div className="p-6 bg-zinc-950/80">
                 {mealContent ? (
@@ -91,6 +89,7 @@ export function Nutrition() {
             </div>
           );
         })}
+
       </div>
     </div>
   );
