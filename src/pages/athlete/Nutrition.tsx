@@ -15,7 +15,6 @@ export function Nutrition() {
       const { data: athlete } = await supabase.from('athletes').select('id, full_name').ilike('email', cleanEmail || '').single();
       
       if (athlete) {
-        // 🚨 NOMBRES DE TABLA CORREGIDO A: athlete_meals
         const { data } = await supabase.from('athlete_meals').select('*').eq('athlete_id', athlete.id).order('created_at', { ascending: false }).limit(1).single();
         if (data) setDiet(data);
       }
@@ -24,8 +23,8 @@ export function Nutrition() {
     fetchDiet();
   }, [user]);
 
-  const getMealStyle = (name: string = '') => {
-    const lower = name.toLowerCase();
+  const getMealStyle = (textToAnalyze: string = '') => {
+    const lower = textToAnalyze.toLowerCase();
     if (lower.includes('ayuno')) return { icon: <Coffee className="w-6 h-6 text-blue-400" />, color: 'border-blue-500/30 bg-blue-950/10' };
     if (lower.includes('desayuno')) return { icon: <Sun className="w-6 h-6 text-amber-400" />, color: 'border-amber-500/30 bg-amber-950/10' };
     if (lower.includes('almuerzo')) return { icon: <Utensils className="w-6 h-6 text-orange-400" />, color: 'border-orange-500/30 bg-orange-950/10' };
@@ -64,15 +63,24 @@ export function Nutrition() {
       </div>
       <div className="space-y-6">
         {meals.map((meal: any, idx: number) => {
-          const style = getMealStyle(meal.name);
+          // 🚨 MAGIA AQUÍ: Buscamos en todos los posibles nombres viejos y nuevos
+          const mealName = meal.name || meal.type || meal.title || `Comida ${idx + 1}`;
+          const mealContent = meal.items || meal.alimentos || meal.foods || meal.description || meal.content || '';
+          const style = getMealStyle(mealName);
+          
           return (
             <div key={idx} className={`rounded-3xl border ${style.color} overflow-hidden shadow-lg transition-transform hover:scale-[1.01]`}>
               <div className="bg-zinc-900/80 px-6 py-4 border-b border-zinc-800/50 flex items-center gap-4">
                 <div className="p-3 bg-zinc-950 rounded-2xl shadow-inner border border-zinc-800/50">{style.icon}</div>
-                <h3 className="text-xl font-black text-white uppercase tracking-wider">{meal.name}</h3>
+                <h3 className="text-xl font-black text-white uppercase tracking-wider">{mealName}</h3>
+                {meal.dish && <span className="text-sm text-zinc-400 font-bold ml-2">({meal.dish})</span>}
               </div>
               <div className="p-6 bg-zinc-950/80">
-                <p className="text-zinc-300 text-[15px] whitespace-pre-wrap leading-relaxed font-medium">{meal.items}</p>
+                {mealContent ? (
+                  <p className="text-zinc-300 text-[15px] whitespace-pre-wrap leading-relaxed font-medium">{mealContent}</p>
+                ) : (
+                  <p className="text-zinc-600 text-sm italic">Sin alimentos registrados en este bloque.</p>
+                )}
               </div>
             </div>
           );

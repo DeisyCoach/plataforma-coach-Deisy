@@ -27,7 +27,6 @@ export function MealPlans() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 🚨 NOMBRES DE TABLAS CORREGIDOS A: meal_plans y athlete_meals
       const [ { data: aData }, { data: tData }, { data: adData } ] = await Promise.all([
         supabase.from('athletes').select('*').order('full_name'),
         supabase.from('meal_plans').select('*').order('created_at', { ascending: false }),
@@ -45,7 +44,6 @@ export function MealPlans() {
 
   const handleSaveMaster = async () => {
     if (!newTitle) return alert('Ponle un título a la plantilla');
-    // 🚨 TABLA CORREGIDA
     const { error } = await supabase.from('meal_plans').insert([{ title: newTitle, calories: newCalories, meals: newMeals }]);
     if (!error) {
       alert('Plantilla guardada exitosamente');
@@ -57,14 +55,12 @@ export function MealPlans() {
 
   const handleDeleteMaster = async (id: string) => {
     if(!window.confirm('¿Seguro que deseas eliminar esta plantilla maestra? Esto no afectará a los atletas que ya la tengan.')) return;
-    // 🚨 TABLA CORREGIDA
     await supabase.from('meal_plans').delete().eq('id', id);
     fetchData();
   };
 
   const handleAssignTemplate = async () => {
     if(!selectedAthleteToAssign || !selectedTemplateToAssign) return alert('Faltan datos');
-    // 🚨 TABLA CORREGIDA
     const { error } = await supabase.from('athlete_meals').insert([{
       athlete_id: selectedAthleteToAssign,
       template_id: selectedTemplateToAssign.id,
@@ -90,7 +86,7 @@ export function MealPlans() {
   };
 
   const handleSaveEdit = async () => {
-    // 🚨 TABLA CORREGIDA
+    // Cuando el coach guarde, los datos viejos se actualizarán automáticamente al formato nuevo (items)
     const { error } = await supabase.from('athlete_meals').update({ meals: editMeals }).eq('id', editingDiet.id);
     if(!error) {
       setIsEditModalOpen(false);
@@ -100,7 +96,6 @@ export function MealPlans() {
 
   const handleDeleteAssignedDiet = async (id: string) => {
     if(!window.confirm('¿Seguro que deseas eliminar esta dieta asignada al atleta?')) return;
-    // 🚨 TABLA CORREGIDA
     await supabase.from('athlete_meals').delete().eq('id', id);
     fetchData();
   };
@@ -212,17 +207,23 @@ export function MealPlans() {
               <button onClick={() => setIsEditModalOpen(false)} className="text-zinc-500 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 mb-4">
-              {editMeals.map((meal, idx) => (
-                <div key={idx} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 relative">
-                  <button onClick={() => setEditMeals(prev => prev.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-zinc-500 hover:text-red-500 transition-colors">
-                    <Trash2 className="w-5 h-5"/>
-                  </button>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Nombre de la Comida</label>
-                  <input type="text" value={meal.name} onChange={e => handleUpdateEditMeal(idx, 'name', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 text-amber-400 font-bold p-2.5 rounded-lg outline-none focus:border-amber-500 mb-3 pr-10" />
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Alimentos / Porciones</label>
-                  <textarea value={meal.items} onChange={e => handleUpdateEditMeal(idx, 'items', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 text-sm text-white p-3 rounded-lg outline-none focus:border-amber-500 min-h-[100px]" />
-                </div>
-              ))}
+              {editMeals.map((meal, idx) => {
+                // 🚨 MAGIA AQUÍ: Leemos los datos viejos si existen
+                const mealName = meal.name || meal.type || '';
+                const mealContent = meal.items || meal.alimentos || meal.foods || meal.description || meal.content || '';
+                
+                return (
+                  <div key={idx} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 relative">
+                    <button onClick={() => setEditMeals(prev => prev.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-zinc-500 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-5 h-5"/>
+                    </button>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Nombre de la Comida</label>
+                    <input type="text" value={mealName} onChange={e => handleUpdateEditMeal(idx, 'name', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 text-amber-400 font-bold p-2.5 rounded-lg outline-none focus:border-amber-500 mb-3 pr-10" />
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Alimentos / Porciones</label>
+                    <textarea value={mealContent} onChange={e => handleUpdateEditMeal(idx, 'items', e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 text-sm text-white p-3 rounded-lg outline-none focus:border-amber-500 min-h-[100px]" />
+                  </div>
+                );
+              })}
               <button onClick={() => setEditMeals(prev => [...prev, { name: 'Nueva Comida', items: '' }])} className="w-full py-4 border-2 border-dashed border-zinc-800 text-zinc-400 font-bold rounded-xl hover:border-amber-500 hover:text-amber-500 transition-colors flex justify-center items-center gap-2">
                 <Plus className="w-5 h-5"/> Añadir Otra Comida a este Atleta
               </button>
