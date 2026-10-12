@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Navigate, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../providers/AuthProvider';
+import { supabase } from '../../lib/supabase/client';
 import { LayoutDashboard, Users, Dumbbell, Calendar, LogOut, Menu, X, TrendingUp, Utensils, Pill, ClipboardCheck } from 'lucide-react';
 
-// 🚨 AQUÍ ESTÁ EL IMPORT INFALIBLE DE TU LOGO
+// 🚨 IMPORT DE TU LOGO
 import logoInge from '../../assets/logo.png';
 
 export function DashboardLayout() {
@@ -11,8 +12,41 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // 🚨 Detección dinámica del rol Coach
+  const [isCoach, setIsCoach] = useState<boolean>(false);
+  const [isRoleChecking, setIsRoleChecking] = useState<boolean>(true);
 
-  if (isLoading) {
+  useEffect(() => {
+    const checkUserRole = async () => {
+      if (!user?.email) {
+        setIsRoleChecking(false);
+        return;
+      }
+
+      try {
+        const cleanEmail = user.email.trim().toLowerCase();
+        
+        // Buscamos si el usuario existe en la tabla de atletas
+        const { data: athlete } = await supabase
+          .from('athletes')
+          .select('id')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        // Si NO está en la tabla de atletas, es un COACH
+        setIsCoach(!athlete);
+      } catch (err) {
+        console.error("Error al verificar rol en DashboardLayout:", err);
+      } finally {
+        setIsRoleChecking(false);
+      }
+    };
+
+    checkUserRole();
+  }, [user]);
+
+  if (isLoading || isRoleChecking) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <span className="text-amber-400 font-semibold animate-pulse">Cargando plataforma...</span>
@@ -29,8 +63,6 @@ export function DashboardLayout() {
     navigate('/login');
   };
 
-  const isCoach = user.email === 'coach@plataforma.com';
-
   const allMenuItems = [
     { name: 'Panel Principal', path: '/', icon: LayoutDashboard, role: 'ambos' },
     { name: 'Mis Atletas', path: '/coach/athletes', icon: Users, role: 'coach' },
@@ -38,7 +70,6 @@ export function DashboardLayout() {
     { name: 'Mi Entrenamiento', path: '/athlete/dashboard', icon: Dumbbell, role: 'atleta' },
     { name: 'Calendario', path: '/coach/calendar', icon: Calendar, role: 'ambos' },
     { name: 'Chequeos', path: '/checkins', icon: ClipboardCheck, role: 'ambos' },
-    // 🚨 AQUÍ ESTÁ LA MAGIA: Si es coach va a meals, si no, va a athlete/nutrition
     { name: 'Nutrición / Menús', path: isCoach ? '/coach/meals' : '/athlete/nutrition', icon: Utensils, role: 'ambos' },
     { name: 'Suplementos & Ayudas', path: '/supplements', icon: Pill, role: 'ambos' },
     { name: 'Progresión Cargas', path: '/coach/progress', icon: TrendingUp, role: 'ambos' },
@@ -57,7 +88,6 @@ export function DashboardLayout() {
       {/* BARRA SUPERIOR MÓVIL */}
       <div className="md:hidden bg-zinc-950 text-white px-4 py-3 flex items-center justify-between border-b border-zinc-800 sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          {/* 🚨 USAMOS LA VARIABLE DEL LOGO AQUÍ */}
           <img src={logoInge} alt="El Inge Fit Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
           <span className="font-bold text-lg tracking-wide text-amber-400">
             {isCoach ? 'El Inge Fit' : 'Portal Atleta'}
@@ -80,7 +110,6 @@ export function DashboardLayout() {
       `}>
         {/* HEADER DESKTOP CON LOGO */}
         <div className="hidden md:flex h-20 items-center px-6 bg-zinc-950 border-b border-zinc-800/80">
-          {/* 🚨 USAMOS LA VARIABLE DEL LOGO AQUÍ TAMBIÉN */}
           <img src={logoInge} alt="El Inge Fit Logo" className="w-12 h-12 object-contain mr-3 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]" />
           <div>
             <h1 className="text-lg font-black text-white tracking-wider">EL INGE <span className="text-amber-400">FIT</span></h1>
