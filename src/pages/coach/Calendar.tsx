@@ -6,8 +6,9 @@ import { Link } from 'react-router-dom';
 
 export function Calendar() {
   const { user } = useAuth();
-  const isCoach = user?.email === 'coach@plataforma.com';
 
+  // 🚨 Detección dinámica del rol Coach
+  const [isCoach, setIsCoach] = useState<boolean>(false);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAthleteFilter, setSelectedAthleteFilter] = useState<string>('ALL');
@@ -38,30 +39,58 @@ export function Calendar() {
     { id: 4, name: 'JUEVES' }, { id: 5, name: 'VIERNES' }, { id: 6, name: 'SÁBADO' }, { id: 7, name: 'DOMINGO' }
   ];
 
-  useEffect(() => { fetchData(); }, [user]);
+  useEffect(() => {
+    if (user) {
+      checkRoleAndFetchData();
+    }
+  }, [user]);
 
-  const fetchData = async () => {
+  const checkRoleAndFetchData = async () => {
     setLoading(true);
-    if (isCoach) {
-      const { data: aData } = await supabase.from('athletes').select('*').order('full_name');
-      const { data: rData } = await supabase.from('routines').select('*').order('name');
-      const { data: assignData } = await supabase
-        .from('athlete_routines')
-        .select('*, athletes(full_name), routines(name)')
-        .order('order_index', { ascending: true, nullsFirst: false });
-        
-      setAthletes(aData || []);
-      setRoutines(rData || []);
-      setAssignments(assignData || []);
-    } else {
-      const cleanEmail = user?.email?.trim().toLowerCase();
-      const { data: athlete } = await supabase.from('athletes').select('id').ilike('email', cleanEmail || '').single();
-      if (athlete) {
-        const { data } = await supabase.from('athlete_routines').select('*, routines(name)').eq('athlete_id', athlete.id).order('order_index', { ascending: true, nullsFirst: false });
+    try {
+      if (!user?.email) {
+        setLoading(false);
+        return;
+      }
+
+      const cleanEmail = user.email.trim().toLowerCase();
+
+      // 🔍 1. Verificamos si existe en la tabla 'athletes'
+      const { data: athlete } = await supabase
+        .from('athletes')
+        .select('id')
+        .ilike('email', cleanEmail)
+        .maybeSingle();
+
+      const coachRole = !athlete;
+      setIsCoach(coachRole);
+
+      // 👑 2. Carga de datos según el rol
+      if (coachRole) {
+        const { data: aData } = await supabase.from('athletes').select('*').order('full_name');
+        const { data: rData } = await supabase.from('routines').select('*').order('name');
+        const { data: assignData } = await supabase
+          .from('athlete_routines')
+          .select('*, athletes(full_name), routines(name)')
+          .order('order_index', { ascending: true, nullsFirst: false });
+          
+        setAthletes(aData || []);
+        setRoutines(rData || []);
+        setAssignments(assignData || []);
+      } else if (athlete) {
+        const { data } = await supabase
+          .from('athlete_routines')
+          .select('*, routines(name)')
+          .eq('athlete_id', athlete.id)
+          .order('order_index', { ascending: true, nullsFirst: false });
+
         setAssignments(data || []);
       }
+    } catch (err) {
+      console.error("Error en Calendar:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const openAssignModal = () => {
@@ -72,7 +101,7 @@ export function Calendar() {
     setIsModalOpen(true);
   };
 
-  // 🚨 FUNCIONAMIENTO ORIGINAL RESTAURADO: Al elegir la rutina, se cargan sus ejercicios
+  // Al elegir la rutina, se cargan sus ejercicios
   const handleRoutineSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const routineId = e.target.value;
     setSelectedRoutine(routineId);
@@ -143,7 +172,7 @@ export function Calendar() {
 
     if (!error) {
       setIsModalOpen(false);
-      fetchData();
+      checkRoleAndFetchData();
     } else alert('Error al asignar: ' + error.message);
   };
 
@@ -162,7 +191,7 @@ export function Calendar() {
     const { error } = await supabase.from('athlete_routines').update({ custom_exercises: editExercises }).eq('id', editingAssignment.id);
     if (!error) {
       setIsEditModalOpen(false);
-      fetchData();
+      checkRoleAndFetchData();
     } else alert('Error al guardar: ' + error.message);
   };
 
@@ -178,15 +207,15 @@ export function Calendar() {
       supabase.from('athlete_routines').update({ order_index: targetAssign.order_index ?? targetIndex }).eq('id', assign.id),
       supabase.from('athlete_routines').update({ order_index: assign.order_index ?? currentIndex }).eq('id', targetAssign.id)
     ]);
-    fetchData();
+    checkRoleAndFetchData();
   };
 
-  // Filtro arreglado
+  // Filtro
   const filteredAssignments = isCoach && selectedAthleteFilter !== 'ALL' 
     ? assignments.filter(a => String(a.athlete_id) === String(selectedAthleteFilter)) 
     : assignments;
 
-  if (loading) return <div className="text-amber-400 font-bold p-8">Cargando calendario...</div>;
+  if (loading) return <div className="text-amber-400 font-bold p-8 text-center">Cargando calendario...</div>;
 
   return (
     <div className="space-y-6">
@@ -200,7 +229,6 @@ export function Calendar() {
         </div>
         {isCoach && (
           <div className="flex items-center gap-3">
-            {/* 🚨 AQUÍ ESTÁ EL SELECT DEL FILTRO YA CON FONDO OSCURO EN TODAS SUS OPCIONES */}
             <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
               <Filter className="w-4 h-4 text-amber-500 shrink-0" />
               <select 
@@ -242,7 +270,7 @@ export function Calendar() {
                               <button onClick={() => openEditModal(assign)} className="text-zinc-400 hover:text-amber-400 p-1"><Pencil className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleMoveBlock(assign, 'up', dayAssignments)} disabled={idx===0} className="text-zinc-400 hover:text-amber-400 p-1 disabled:opacity-30"><ArrowUp className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleMoveBlock(assign, 'down', dayAssignments)} disabled={idx===dayAssignments.length-1} className="text-zinc-400 hover:text-amber-400 p-1 disabled:opacity-30"><ArrowDown className="w-3.5 h-3.5" /></button>
-                              <button onClick={() => supabase.from('athlete_routines').delete().eq('id', assign.id).then(fetchData)} className="text-zinc-400 hover:text-red-400 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => supabase.from('athlete_routines').delete().eq('id', assign.id).then(checkRoleAndFetchData)} className="text-zinc-400 hover:text-red-400 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </div>
                           <p className="text-sm font-bold text-white flex items-start gap-1.5 leading-tight">
@@ -356,7 +384,7 @@ export function Calendar() {
                 ))}
               </div>
 
-              {/* INYECTOR DE EJERCICIOS EXTRA (Para combinar biseries) */}
+              {/* INYECTOR DE EJERCICIOS EXTRA */}
               {((isModalOpen && selectedRoutine) || isEditModalOpen) && (
                 <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 mt-6">
                   <label className="block text-xs font-black text-emerald-500 uppercase mb-2 flex items-center gap-2"><Search className="w-4 h-4"/> ¿Combinar con ejercicios de otra plantilla?</label>
