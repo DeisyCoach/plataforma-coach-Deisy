@@ -15,8 +15,7 @@ export function MainPanel() {
   const [strengthFeedback, setStrengthFeedback] = useState({ title: '', message: '', type: 'neutral' });
   const [loading, setLoading] = useState(true);
 
-  // 🧠 Diccionario inteligente para detectar el grupo muscular
-  const getMuscleGroup = (exerciseName: string) => {
+  const getMuscleGroup = (exerciseName: string = '') => {
     const name = exerciseName.toLowerCase();
     if (/(pierna|cuadricep|femoral|gluteo|sentadilla|prensa|extensi[óo]n|zancada|hip thrust|pantorrilla|peso muerto)/.test(name)) return 'Pierna/Glúteo';
     if (/(espalda|dominada|remo|jal[óo]n|pull up|lumbar)/.test(name)) return 'Espalda';
@@ -33,98 +32,98 @@ export function MainPanel() {
     }
 
     const fetchAthleteData = async () => {
-      const cleanEmail = user?.email?.trim().toLowerCase();
-      const { data: athlete } = await supabase.from('athletes').select('*').ilike('email', cleanEmail || '').single();
-      
-      if (athlete) {
-        setAthleteData(athlete);
-        
-        // 1. Cargar pesos corporales
-        const { data: checkins } = await supabase.from('weekly_checkins')
-          .select('fasting_weight, created_at')
-          .eq('athlete_id', athlete.id)
-          .order('created_at', { ascending: false })
-          .limit(6);
-        
-        if (checkins) {
-          const chartData = checkins.map(c => ({
-            fecha: new Date(c.created_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric'}),
-            peso: parseFloat(c.fasting_weight)
-          })).reverse();
-          setWeightChartData(chartData);
+      try {
+        if (!user?.email) {
+          setLoading(false);
+          return;
         }
 
-        // 2. Lógica de Chequeo Faltante
-        if (!checkins || checkins.length === 0) {
-          setNeedsCheckin(true);
-        } else {
-          const lastCheckinDate = new Date(checkins[0].created_at);
-          const diffTime = Math.abs(new Date().getTime() - lastCheckinDate.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          setNeedsCheckin(diffDays > 6);
-        }
+        const cleanEmail = user.email.trim().toLowerCase();
+        const { data: athlete } = await supabase.from('athletes').select('*').ilike('email', cleanEmail).maybeSingle();
+        
+        if (athlete) {
+          setAthleteData(athlete);
+          
+          const { data: checkins } = await supabase.from('weekly_checkins')
+            .select('fasting_weight, created_at')
+            .eq('athlete_id', athlete.id)
+            .order('created_at', { ascending: false })
+            .limit(6);
+          
+          if (checkins && checkins.length > 0) {
+            const chartData = checkins.map(c => ({
+              fecha: c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric'}) : '',
+              peso: parseFloat(c.fasting_weight || '0')
+            })).reverse();
+            setWeightChartData(chartData);
 
-        // 3. Lógica AVANZADA de Análisis de Fuerza
-        const { data: logs } = await supabase.from('workout_logs')
-          .select('exercise_name, weight_used, reps_done, created_at')
-          .eq('athlete_id', athlete.id)
-          .order('created_at', { ascending: false })
-          .limit(100);
+            const lastCheckinDate = new Date(checkins[0].created_at);
+            const diffTime = Math.abs(new Date().getTime() - lastCheckinDate.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            setNeedsCheckin(diffDays > 6);
+          } else {
+            setNeedsCheckin(true);
+          }
 
-        if (logs && logs.length > 0) {
-          // Agrupamos los logs por ejercicio para comparar
-          const logsByExercise = logs.reduce((acc: any, log: any) => {
-            const name = log.exercise_name.trim();
-            if (!acc[name]) acc[name] = [];
-            acc[name].push(log);
-            return acc;
-          }, {});
+          const { data: logs } = await supabase.from('workout_logs')
+            .select('exercise_name, weight_used, reps_done, created_at')
+            .eq('athlete_id', athlete.id)
+            .order('created_at', { ascending: false })
+            .limit(100);
 
-          let feedbackSet = false;
+          if (logs && logs.length > 0) {
+            const logsByExercise = logs.reduce((acc: any, log: any) => {
+              const name = (log.exercise_name || '').trim();
+              if (name) {
+                if (!acc[name]) acc[name] = [];
+                acc[name].push(log);
+              }
+              return acc;
+            }, {});
 
-          // Buscamos el primer ejercicio que tenga progreso reciente
-          for (const [exerciseName, exerciseLogs] of Object.entries(logsByExercise)) {
-            const logsArray = exerciseLogs as any[];
-            if (logsArray.length >= 2) {
-              const recent = logsArray[0]; // El más nuevo
-              const previous = logsArray[1]; // El anterior
+            let feedbackSet = false;
 
-              const muscleGroup = getMuscleGroup(exerciseName);
+            for (const [exerciseName, exerciseLogs] of Object.entries(logsByExercise)) {
+              const logsArray = exerciseLogs as any[];
+              if (logsArray.length >= 2) {
+                const recent = logsArray[0];
+                const previous = logsArray[1];
+                const muscleGroup = getMuscleGroup(exerciseName);
 
-              // Subió peso o subió reps con el mismo peso
-              if (recent.weight_used > previous.weight_used || (recent.weight_used === previous.weight_used && recent.reps_done > previous.reps_done)) {
-                setStrengthFeedback({ 
-                  title: '¡EXCELENTE PROGRESO!', 
-                  message: `Vas muy bien. Recientemente aumentaste tus cargas o repeticiones en ${muscleGroup} (${exerciseName}). ¡A seguir mutando!`, 
-                  type: 'up' 
-                });
-                feedbackSet = true;
-                break;
-              } 
-              // Bajó peso (Descarga)
-              else if (recent.weight_used < previous.weight_used) {
-                setStrengthFeedback({ 
-                  title: 'FASE DE RECUPERACIÓN', 
-                  message: `Notamos una descarga de peso en ${muscleGroup} (${exerciseName}). Recuerda que el descanso y control de cargas también es progreso.`, 
-                  type: 'down' 
-                });
-                feedbackSet = true;
-                break;
+                if (recent.weight_used > previous.weight_used || (recent.weight_used === previous.weight_used && recent.reps_done > previous.reps_done)) {
+                  setStrengthFeedback({ 
+                    title: '¡EXCELENTE PROGRESO!', 
+                    message: `Vas muy bien. Recientemente aumentaste tus cargas o repeticiones en ${muscleGroup} (${exerciseName}). ¡A seguir mutando!`, 
+                    type: 'up' 
+                  });
+                  feedbackSet = true;
+                  break;
+                } else if (recent.weight_used < previous.weight_used) {
+                  setStrengthFeedback({ 
+                    title: 'FASE DE RECUPERACIÓN', 
+                    message: `Notamos una descarga de peso en ${muscleGroup} (${exerciseName}). Recuerda que el descanso y control de cargas también es progreso.`, 
+                    type: 'down' 
+                  });
+                  feedbackSet = true;
+                  break;
+                }
               }
             }
-          }
 
-          // Si no encontró subidas ni bajadas, asume mantenimiento
-          if (!feedbackSet && logs.length > 0) {
-            setStrengthFeedback({ 
-              title: 'MANTENIENDO EL NIVEL', 
-              message: `Tus cargas recientes se mantienen sólidas. ¡Estás consolidando tu fuerza para el próximo salto!`, 
-              type: 'neutral' 
-            });
+            if (!feedbackSet) {
+              setStrengthFeedback({ 
+                title: 'MANTENIENDO EL NIVEL', 
+                message: `Tus cargas recientes se mantienen sólidas. ¡Estás consolidando tu fuerza para el próximo salto!`, 
+                type: 'neutral' 
+              });
+            }
           }
         }
+      } catch (err) {
+        console.error("Error en MainPanel:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchAthleteData();
@@ -168,14 +167,13 @@ export function MainPanel() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* GRÁFICA DE PESO CORPORAL */}
         <div className="bg-zinc-950 rounded-3xl border border-zinc-800 p-6 flex flex-col h-[280px]">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-black text-white text-lg flex items-center gap-2">
               <Scale className="w-5 h-5 text-emerald-400"/> Evolución de Peso
             </h3>
             {weightChartData.length > 0 && (
-              <span className="text-emerald-400 font-black bg-emerald-500/10 px-3 py-1 rounded-lg">
+              <span className="text-emerald-400 font-black bg-emerald-500/10 px-3 py-1 rounded-lg text-sm">
                 Actual: {weightChartData[weightChartData.length - 1].peso} kg
               </span>
             )}
@@ -202,7 +200,6 @@ export function MainPanel() {
           </div>
         </div>
 
-        {/* FEEDBACK DINÁMICO */}
         <div className={`rounded-3xl border p-6 flex flex-col justify-center h-[280px]
           ${strengthFeedback.type === 'up' ? 'bg-amber-950/20 border-amber-500/30' : 
             strengthFeedback.type === 'down' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-zinc-950 border-zinc-800'}
