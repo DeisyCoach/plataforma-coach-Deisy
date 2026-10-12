@@ -38,7 +38,8 @@ export function DashboardLayout() {
     { name: 'Mi Entrenamiento', path: '/athlete/dashboard', icon: Dumbbell, role: 'atleta' },
     { name: 'Calendario', path: '/coach/calendar', icon: Calendar, role: 'ambos' },
     { name: 'Chequeos', path: '/checkins', icon: ClipboardCheck, role: 'ambos' },
-    { name: 'Nutrición / Menús', path: '/coach/meals', icon: Utensils, role: 'ambos' },
+    // 🚨 AQUÍ ESTÁ LA MAGIA: Si es coach va a meals, si no, va a athlete/nutrition
+    { name: 'Nutrición / Menús', path: isCoach ? '/coach/meals' : '/athlete/nutrition', icon: Utensils, role: 'ambos' },
     { name: 'Suplementos & Ayudas', path: '/supplements', icon: Pill, role: 'ambos' },
     { name: 'Progresión Cargas', path: '/coach/progress', icon: TrendingUp, role: 'ambos' },
   ];
