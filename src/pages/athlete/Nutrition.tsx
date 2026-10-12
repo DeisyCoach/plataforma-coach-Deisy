@@ -62,8 +62,14 @@ export function Nutrition() {
         </div>
       </div>
       <div className="space-y-6">
+        
+        {/* 👇 CAJA DE RAYOS X TEMPORAL 👇 */}
+        <div className="bg-red-500/20 border border-red-500 p-4 rounded-xl text-white font-mono text-[10px] break-words">
+          DEBUG DATOS: {JSON.stringify(meals)}
+        </div>
+        {/* 👆 FIN CAJA RAYOS X 👆 */}
+
         {meals.map((meal: any, idx: number) => {
-          // 🚨 MAGIA AQUÍ: Buscamos en todos los posibles nombres viejos y nuevos
           const mealName = meal.name || meal.type || meal.title || `Comida ${idx + 1}`;
           const mealContent = meal.items || meal.alimentos || meal.foods || meal.description || meal.content || '';
           const style = getMealStyle(mealName);
