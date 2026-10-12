@@ -86,22 +86,24 @@ export function AthleteDashboard() {
     }));
   };
 
-  // 🚨 FUNCION DE GUARDADO BLINDADA
-  const saveLog = async (assignmentId: string, exercise: any, originalIndex: number) => {
+  // 🚨 AHORA RECIBE EL OBJETO COMPLETO DE ASIGNACIÓN PARA SACAR EL ID DE LA RUTINA MAESTRA
+  const saveLog = async (assignment: any, exercise: any, originalIndex: number) => {
     try {
       if (!athleteData) {
         alert("Error: No se pudo verificar la identidad del atleta. Recarga la página.");
         return;
       }
 
+      const assignmentId = assignment.id;
+      // 🚨 AQUÍ ESTÁ LA MAGIA: Extraemos el ID real de la rutina maestra para que la BD no rechace el guardado
+      const masterRoutineId = assignment.routines?.id;
+
       const key = `${assignmentId}-${exercise.id || originalIndex}`;
-      // Blindaje: si el logData no existe aún en memoria, creamos uno con valores por defecto
       const logData = exerciseLogs[key] || { weight: '', reps: exercise.reps || '', done: false };
       
       const cleanExName = (exercise.name || '').trim();
       const cleanKey = cleanExName.toLowerCase();
       
-      // Asegurarnos de que no arroje NaN (Not a Number) si están vacíos
       const weightValue = logData.weight ? String(logData.weight) : '0';
       const repsValue = logData.reps ? String(logData.reps) : '0';
 
@@ -110,7 +112,7 @@ export function AthleteDashboard() {
 
       const { error } = await supabase.from('workout_logs').insert([{
         athlete_id: athleteData.id, 
-        routine_id: assignmentId, 
+        routine_id: masterRoutineId, // 🚨 PASAMOS EL ID CORRECTO AQUÍ
         exercise_name: cleanExName, 
         weight_used: weightNum, 
         reps_done: repsNum
@@ -122,7 +124,6 @@ export function AthleteDashboard() {
         return;
       }
 
-      // Actualizar visualmente al instante
       setExerciseLogs(prev => ({ 
         ...prev, 
         [key]: { weight: weightValue, reps: repsValue, done: true } 
@@ -203,7 +204,7 @@ export function AthleteDashboard() {
                 
                 {groupedExercises.map((groupOrEx: any, renderIndex: number) => {
                   
-                  // --- GRUPO DE EJERCICIOS (Biserie/Superserie) ---
+                  // --- GRUPO DE EJERCICIOS ---
                   if (groupOrEx.isGroup) {
                     return (
                       <div key={`group-${renderIndex}`} className="rounded-xl border border-amber-500/40 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.08)] overflow-hidden">
@@ -278,7 +279,8 @@ export function AthleteDashboard() {
                                     <input type="number" value={currentLog.reps || ''} onChange={(e) => handleLogChange(key, 'reps', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
                                   </div>
                                   <div className="col-span-2 sm:col-span-1">
-                                    <button onClick={() => saveLog(assignment.id, exercise, originalIndex)} disabled={currentLog.done} className="w-full py-2.5 px-3 bg-amber-500 text-black rounded-lg text-sm font-black uppercase hover:bg-amber-400 transition-all disabled:opacity-50 disabled:bg-emerald-500/20 disabled:text-emerald-400 flex items-center justify-center gap-2">
+                                    {/* 🚨 AQUÍ CAMBIAMOS assignment.id POR assignment completo */}
+                                    <button onClick={() => saveLog(assignment, exercise, originalIndex)} disabled={currentLog.done} className="w-full py-2.5 px-3 bg-amber-500 text-black rounded-lg text-sm font-black uppercase hover:bg-amber-400 transition-all disabled:opacity-50 disabled:bg-emerald-500/20 disabled:text-emerald-400 flex items-center justify-center gap-2">
                                       {currentLog.done ? <><CheckCircle2 className="w-4 h-4"/> Listo</> : 'Guardar'}
                                     </button>
                                   </div>
@@ -352,7 +354,8 @@ export function AthleteDashboard() {
                           <input type="number" value={currentLog.reps || ''} onChange={(e) => handleLogChange(key, 'reps', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
                         </div>
                         <div className="col-span-2 sm:col-span-1">
-                          <button onClick={() => saveLog(assignment.id, exercise, originalIndex)} disabled={currentLog.done} className="w-full py-2.5 px-3 bg-amber-500 text-black rounded-lg text-sm font-black uppercase hover:bg-amber-400 transition-all disabled:opacity-50 disabled:bg-emerald-500/20 disabled:text-emerald-400 flex items-center justify-center gap-2">
+                          {/* 🚨 AQUÍ CAMBIAMOS assignment.id POR assignment completo */}
+                          <button onClick={() => saveLog(assignment, exercise, originalIndex)} disabled={currentLog.done} className="w-full py-2.5 px-3 bg-amber-500 text-black rounded-lg text-sm font-black uppercase hover:bg-amber-400 transition-all disabled:opacity-50 disabled:bg-emerald-500/20 disabled:text-emerald-400 flex items-center justify-center gap-2">
                             {currentLog.done ? <><CheckCircle2 className="w-4 h-4"/> Listo</> : 'Guardar'}
                           </button>
                         </div>
