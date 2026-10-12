@@ -15,7 +15,8 @@ export function Nutrition() {
       const { data: athlete } = await supabase.from('athletes').select('id, full_name').ilike('email', cleanEmail || '').single();
       
       if (athlete) {
-        const { data } = await supabase.from('athlete_nutrition').select('*').eq('athlete_id', athlete.id).order('created_at', { ascending: false }).limit(1).single();
+        // 🚨 NOMBRES DE TABLA CORREGIDO A: athlete_meals
+        const { data } = await supabase.from('athlete_meals').select('*').eq('athlete_id', athlete.id).order('created_at', { ascending: false }).limit(1).single();
         if (data) setDiet(data);
       }
       setLoading(false);

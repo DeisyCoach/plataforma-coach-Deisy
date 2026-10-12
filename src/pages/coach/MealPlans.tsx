@@ -26,21 +26,27 @@ export function MealPlans() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [ { data: aData }, { data: tData }, { data: adData } ] = await Promise.all([
-      supabase.from('athletes').select('*').order('full_name'),
-      supabase.from('nutrition_templates').select('*').order('created_at', { ascending: false }),
-      supabase.from('athlete_nutrition').select('*, athletes(full_name)').order('created_at', { ascending: false })
-    ]);
-    
-    setAthletes(aData || []);
-    setTemplates(tData || []);
-    setAssignedDiets(adData || []);
+    try {
+      // 🚨 NOMBRES DE TABLAS CORREGIDOS A: meal_plans y athlete_meals
+      const [ { data: aData }, { data: tData }, { data: adData } ] = await Promise.all([
+        supabase.from('athletes').select('*').order('full_name'),
+        supabase.from('meal_plans').select('*').order('created_at', { ascending: false }),
+        supabase.from('athlete_meals').select('*, athletes!inner(full_name)').order('created_at', { ascending: false })
+      ]);
+      
+      setAthletes(aData || []);
+      setTemplates(tData || []);
+      setAssignedDiets(adData || []);
+    } catch (error) {
+      console.error(error);
+    }
     setLoading(false);
   };
 
   const handleSaveMaster = async () => {
     if (!newTitle) return alert('Ponle un título a la plantilla');
-    const { error } = await supabase.from('nutrition_templates').insert([{ title: newTitle, calories: newCalories, meals: newMeals }]);
+    // 🚨 TABLA CORREGIDA
+    const { error } = await supabase.from('meal_plans').insert([{ title: newTitle, calories: newCalories, meals: newMeals }]);
     if (!error) {
       alert('Plantilla guardada exitosamente');
       setNewTitle(''); setNewCalories('');
@@ -51,13 +57,15 @@ export function MealPlans() {
 
   const handleDeleteMaster = async (id: string) => {
     if(!window.confirm('¿Seguro que deseas eliminar esta plantilla maestra? Esto no afectará a los atletas que ya la tengan.')) return;
-    await supabase.from('nutrition_templates').delete().eq('id', id);
+    // 🚨 TABLA CORREGIDA
+    await supabase.from('meal_plans').delete().eq('id', id);
     fetchData();
   };
 
   const handleAssignTemplate = async () => {
     if(!selectedAthleteToAssign || !selectedTemplateToAssign) return alert('Faltan datos');
-    const { error } = await supabase.from('athlete_nutrition').insert([{
+    // 🚨 TABLA CORREGIDA
+    const { error } = await supabase.from('athlete_meals').insert([{
       athlete_id: selectedAthleteToAssign,
       template_id: selectedTemplateToAssign.id,
       title: selectedTemplateToAssign.title,
@@ -82,7 +90,8 @@ export function MealPlans() {
   };
 
   const handleSaveEdit = async () => {
-    const { error } = await supabase.from('athlete_nutrition').update({ meals: editMeals }).eq('id', editingDiet.id);
+    // 🚨 TABLA CORREGIDA
+    const { error } = await supabase.from('athlete_meals').update({ meals: editMeals }).eq('id', editingDiet.id);
     if(!error) {
       setIsEditModalOpen(false);
       fetchData();
@@ -91,7 +100,8 @@ export function MealPlans() {
 
   const handleDeleteAssignedDiet = async (id: string) => {
     if(!window.confirm('¿Seguro que deseas eliminar esta dieta asignada al atleta?')) return;
-    await supabase.from('athlete_nutrition').delete().eq('id', id);
+    // 🚨 TABLA CORREGIDA
+    await supabase.from('athlete_meals').delete().eq('id', id);
     fetchData();
   };
 
