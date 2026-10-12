@@ -7,8 +7,9 @@ import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export function MainPanel() {
   const { user } = useAuth();
-  const isCoach = user?.email === 'coach@plataforma.com';
   
+  // 🚨 Estado dinámico para el rol de Coach
+  const [isCoach, setIsCoach] = useState<boolean>(false);
   const [athleteData, setAthleteData] = useState<any>(null);
   const [weightChartData, setWeightChartData] = useState<any[]>([]);
   const [needsCheckin, setNeedsCheckin] = useState(false);
@@ -26,12 +27,7 @@ export function MainPanel() {
   };
 
   useEffect(() => {
-    if (isCoach) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchAthleteData = async () => {
+    const checkRoleAndFetchData = async () => {
       try {
         if (!user?.email) {
           setLoading(false);
@@ -39,84 +35,97 @@ export function MainPanel() {
         }
 
         const cleanEmail = user.email.trim().toLowerCase();
-        const { data: athlete } = await supabase.from('athletes').select('*').ilike('email', cleanEmail).maybeSingle();
         
-        if (athlete) {
-          setAthleteData(athlete);
-          
-          const { data: checkins } = await supabase.from('weekly_checkins')
-            .select('fasting_weight, created_at')
-            .eq('athlete_id', athlete.id)
-            .order('created_at', { ascending: false })
-            .limit(6);
-          
-          if (checkins && checkins.length > 0) {
-            const chartData = checkins.map(c => ({
-              fecha: c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric'}) : '',
-              peso: parseFloat(c.fasting_weight || '0')
-            })).reverse();
-            setWeightChartData(chartData);
+        // 🔍 1. Consultamos si el usuario logueado existe en la tabla de atletas
+        const { data: athlete } = await supabase
+          .from('athletes')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
 
-            const lastCheckinDate = new Date(checkins[0].created_at);
-            const diffTime = Math.abs(new Date().getTime() - lastCheckinDate.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            setNeedsCheckin(diffDays > 6);
-          } else {
-            setNeedsCheckin(true);
+        // 👑 2. Si NO existe en la tabla de atletas, es un COACH
+        if (!athlete) {
+          setIsCoach(true);
+          setLoading(false);
+          return;
+        }
+
+        // 🏋️ 3. Si SÍ existe en la tabla, es un ATLETA y cargamos sus datos
+        setIsCoach(false);
+        setAthleteData(athlete);
+        
+        const { data: checkins } = await supabase.from('weekly_checkins')
+          .select('fasting_weight, created_at')
+          .eq('athlete_id', athlete.id)
+          .order('created_at', { ascending: false })
+          .limit(6);
+        
+        if (checkins && checkins.length > 0) {
+          const chartData = checkins.map(c => ({
+            fecha: c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES', { month: 'short', day: 'numeric'}) : '',
+            peso: parseFloat(c.fasting_weight || '0')
+          })).reverse();
+          setWeightChartData(chartData);
+
+          const lastCheckinDate = new Date(checkins[0].created_at);
+          const diffTime = Math.abs(new Date().getTime() - lastCheckinDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          setNeedsCheckin(diffDays > 6);
+        } else {
+          setNeedsCheckin(true);
+        }
+
+        const { data: logs } = await supabase.from('workout_logs')
+          .select('exercise_name, weight_used, reps_done, created_at')
+          .eq('athlete_id', athlete.id)
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (logs && logs.length > 0) {
+          const logsByExercise = logs.reduce((acc: any, log: any) => {
+            const name = (log.exercise_name || '').trim();
+            if (name) {
+              if (!acc[name]) acc[name] = [];
+              acc[name].push(log);
+            }
+            return acc;
+          }, {});
+
+          let feedbackSet = false;
+
+          for (const [exerciseName, exerciseLogs] of Object.entries(logsByExercise)) {
+            const logsArray = exerciseLogs as any[];
+            if (logsArray.length >= 2) {
+              const recent = logsArray[0];
+              const previous = logsArray[1];
+              const muscleGroup = getMuscleGroup(exerciseName);
+
+              if (recent.weight_used > previous.weight_used || (recent.weight_used === previous.weight_used && recent.reps_done > previous.reps_done)) {
+                setStrengthFeedback({ 
+                  title: '¡EXCELENTE PROGRESO!', 
+                  message: `Vas muy bien. Recientemente aumentaste tus cargas o repeticiones en ${muscleGroup} (${exerciseName}). ¡A seguir mutando!`, 
+                  type: 'up' 
+                });
+                feedbackSet = true;
+                break;
+              } else if (recent.weight_used < previous.weight_used) {
+                setStrengthFeedback({ 
+                  title: 'FASE DE RECUPERACIÓN', 
+                  message: `Notamos una descarga de peso en ${muscleGroup} (${exerciseName}). Recuerda que el descanso y control de cargas también es progreso.`, 
+                  type: 'down' 
+                });
+                feedbackSet = true;
+                break;
+              }
+            }
           }
 
-          const { data: logs } = await supabase.from('workout_logs')
-            .select('exercise_name, weight_used, reps_done, created_at')
-            .eq('athlete_id', athlete.id)
-            .order('created_at', { ascending: false })
-            .limit(100);
-
-          if (logs && logs.length > 0) {
-            const logsByExercise = logs.reduce((acc: any, log: any) => {
-              const name = (log.exercise_name || '').trim();
-              if (name) {
-                if (!acc[name]) acc[name] = [];
-                acc[name].push(log);
-              }
-              return acc;
-            }, {});
-
-            let feedbackSet = false;
-
-            for (const [exerciseName, exerciseLogs] of Object.entries(logsByExercise)) {
-              const logsArray = exerciseLogs as any[];
-              if (logsArray.length >= 2) {
-                const recent = logsArray[0];
-                const previous = logsArray[1];
-                const muscleGroup = getMuscleGroup(exerciseName);
-
-                if (recent.weight_used > previous.weight_used || (recent.weight_used === previous.weight_used && recent.reps_done > previous.reps_done)) {
-                  setStrengthFeedback({ 
-                    title: '¡EXCELENTE PROGRESO!', 
-                    message: `Vas muy bien. Recientemente aumentaste tus cargas o repeticiones en ${muscleGroup} (${exerciseName}). ¡A seguir mutando!`, 
-                    type: 'up' 
-                  });
-                  feedbackSet = true;
-                  break;
-                } else if (recent.weight_used < previous.weight_used) {
-                  setStrengthFeedback({ 
-                    title: 'FASE DE RECUPERACIÓN', 
-                    message: `Notamos una descarga de peso en ${muscleGroup} (${exerciseName}). Recuerda que el descanso y control de cargas también es progreso.`, 
-                    type: 'down' 
-                  });
-                  feedbackSet = true;
-                  break;
-                }
-              }
-            }
-
-            if (!feedbackSet) {
-              setStrengthFeedback({ 
-                title: 'MANTENIENDO EL NIVEL', 
-                message: `Tus cargas recientes se mantienen sólidas. ¡Estás consolidando tu fuerza para el próximo salto!`, 
-                type: 'neutral' 
-              });
-            }
+          if (!feedbackSet) {
+            setStrengthFeedback({ 
+              title: 'MANTENIENDO EL NIVEL', 
+              message: `Tus cargas recientes se mantienen sólidas. ¡Estás consolidando tu fuerza para el próximo salto!`, 
+              type: 'neutral' 
+            });
           }
         }
       } catch (err) {
@@ -126,8 +135,8 @@ export function MainPanel() {
       }
     };
 
-    fetchAthleteData();
-  }, [user, isCoach]);
+    checkRoleAndFetchData();
+  }, [user]);
 
   if (loading) return <div className="text-amber-500 font-bold p-8 text-center">Cargando tu panel...</div>;
 
