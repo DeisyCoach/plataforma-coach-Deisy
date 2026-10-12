@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
+import { useAuth } from '../../providers/AuthProvider';
 import { createClient } from '@supabase/supabase-js';
 import { UserPlus, Pencil, Trash2, Search, Dumbbell, Utensils, Pill, PauseCircle, PlayCircle, Key, Eye, EyeOff, X } from 'lucide-react';
 
 export function Athletes() {
+  const { user } = useAuth();
   const [athletes, setAthletes] = useState<any[]>([]);
   const [athleteDetails, setAthleteDetails] = useState<any>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,10 +27,26 @@ export function Athletes() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => { fetchAthletesAndDetails(); }, []);
+  useEffect(() => { 
+    if (user) {
+      fetchAthletesAndDetails(); 
+    }
+  }, [user]);
 
   const fetchAthletesAndDetails = async () => {
-    const { data: athletesData } = await supabase.from('athletes').select('*').order('created_at', { ascending: false });
+    if (!user) return;
+    
+    // 🚨 Filtramos para obtener solo los atletas de ESTE coach
+    const { data: athletesData, error } = await supabase
+      .from('athletes')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error al obtener atletas:", error);
+      return;
+    }
+    
     if (!athletesData) return;
     
     const { data: routines } = await supabase.from('athlete_routines').select('athlete_id');
@@ -48,11 +66,12 @@ export function Athletes() {
     setAthletes(athletesData);
   };
 
-  // 🚨 CREAR ATLETA NUEVO CON CONTRASEÑA
+  // 🚨 CREAR ATLETA NUEVO
   const handleAddAthlete = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFullName || !newEmail || !newPassword) return alert('Por favor llena todos los campos');
     if (newPassword.length < 6) return alert('La contraseña debe tener al menos 6 caracteres');
+    if (!user) return alert('No hay sesión de Coach activa');
 
     setIsSubmitting(true);
 
@@ -69,7 +88,14 @@ export function Athletes() {
         });
       }
 
-      const { error: dbError } = await supabase.from('athletes').insert([{ full_name: newFullName, email: newEmail }]);
+      // 🚨 INSERCIÓN CORREGIDA: Incluimos el coach_id explícitamente
+      const { error: dbError } = await supabase
+        .from('athletes')
+        .insert([{ 
+          full_name: newFullName, 
+          email: newEmail,
+          coach_id: user.id 
+        }]);
 
       if (!dbError) {
         alert(`¡Atleta creado exitosamente!\n\nEmail: ${newEmail}\nContraseña: ${newPassword}`);
@@ -97,7 +123,7 @@ export function Athletes() {
     setIsEditModalOpen(true);
   };
 
-  // 🚨 ACTUALIZAR ATLETA EXISTENTE Y ASIGNAR CONTRASEÑA
+  // 🚨 ACTUALIZAR ATLETA EXISTENTE
   const handleUpdateAthlete = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAthleteId || !editFullName || !editEmail) return alert('Llena los campos obligatorios');
@@ -105,7 +131,6 @@ export function Athletes() {
     setIsSubmitting(true);
 
     try {
-      // 1. Actualizar datos en la tabla principal
       const { error: dbError } = await supabase
         .from('athletes')
         .update({ full_name: editFullName, email: editEmail })
@@ -113,7 +138,6 @@ export function Athletes() {
 
       if (dbError) throw dbError;
 
-      // 2. Si se ingresó una contraseña, crear/actualizar su cuenta de Auth
       if (editPassword.trim().length > 0) {
         if (editPassword.length < 6) return alert('La contraseña debe tener al menos 6 caracteres');
 
@@ -129,10 +153,9 @@ export function Athletes() {
             options: { data: { full_name: editFullName, role: 'athlete' } }
           });
 
-          // Si el usuario ya existía en Auth, le enviamos un enlace o le confirmamos
           if (authError && authError.message.includes('already registered')) {
             await tempClient.auth.resetPasswordForEmail(editEmail);
-            alert(`Los datos de ${editFullName} fueron actualizados.\n\nEl correo ya estaba registrado en el sistema. Se envió un correo de restablecimiento a ${editEmail} para activar la nueva contraseña.`);
+            alert(`Los datos de ${editFullName} fueron actualizados.\n\nEl correo ya estaba registrado en el sistema. Se envió un correo de restablecimiento a ${editEmail}.`);
           } else {
             alert(`¡Atleta actualizado correctamente!\n\n${editFullName} ahora puede ingresar con:\nCorreo: ${editEmail}\nContraseña: ${editPassword}`);
           }
@@ -188,8 +211,8 @@ export function Athletes() {
   };
 
   const filteredAthletes = athletes.filter(a => 
-    a.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.email.toLowerCase().includes(searchTerm.toLowerCase())
+    a.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    a.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -243,7 +266,7 @@ export function Athletes() {
                   </td>
                   <td className="px-6 py-4">
                     <span className="flex items-center gap-1.5 text-xs font-bold text-blue-400 bg-blue-400/10 px-2.5 py-1 rounded-full w-fit">
-                      <Dumbbell className="w-3.5 h-3.5" /> {athleteDetails[athlete.id]?.rutinas} Rutinas
+                      <Dumbbell className="w-3.5 h-3.5" /> {athleteDetails[athlete.id]?.rutinas || 0} Rutinas
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -261,7 +284,6 @@ export function Athletes() {
                       {isActive ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
                     </button>
                     
-                    {/* 🚨 BOTÓN EDITAR HABILITADO */}
                     <button 
                       onClick={() => openEditModal(athlete)}
                       className="p-2 text-zinc-400 hover:text-white bg-zinc-900 rounded-lg transition-colors"
@@ -319,7 +341,7 @@ export function Athletes() {
         </div>
       )}
 
-      {/* 🚨 MODAL EDITAR ATLETA Y DEFINIR CONTRASEÑA */}
+      {/* MODAL EDITAR ATLETA */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form onSubmit={handleUpdateAthlete} className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-sm w-full p-6 space-y-4 shadow-2xl">
