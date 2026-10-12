@@ -44,7 +44,6 @@ export function AthleteDashboard() {
           const dayAssignments = assignments?.filter(a => Number(a.day_of_week) === targetDay) || [];
           setActiveRoutines(dayAssignments);
 
-          // Cargar historial ordenado del más reciente al más antiguo
           const { data: pastLogs } = await supabase.from('workout_logs')
             .select('exercise_name, weight_used, reps_done, created_at')
             .eq('athlete_id', athlete.id)
@@ -59,7 +58,6 @@ export function AthleteDashboard() {
                 const compositeKey = `${assign.id}-${ex.id || i}`;
                 initialLogs[compositeKey] = { weight: '', reps: ex.reps || '', done: false };
                 
-                // Normalización estricta para emparejar historial
                 const cleanExName = (ex.name || '').trim().toLowerCase();
                 const lastLog = pastLogs?.find(log => (log.exercise_name || '').trim().toLowerCase() === cleanExName);
                 
@@ -82,43 +80,62 @@ export function AthleteDashboard() {
   }, [user, targetDay]);
 
   const handleLogChange = (key: string, field: 'weight'|'reps', value: string) => {
-    setExerciseLogs(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+    setExerciseLogs(prev => ({ 
+      ...prev, 
+      [key]: { ...(prev[key] || { weight: '', reps: '', done: false }), [field]: value } 
+    }));
   };
 
-  const saveLog = async (assignmentId: string, exercise: any, index: number) => {
-    const key = `${assignmentId}-${exercise.id || index}`;
-    const logData = exerciseLogs[key];
-    
-    if (!athleteData) return;
+  // 🚨 FUNCION DE GUARDADO BLINDADA
+  const saveLog = async (assignmentId: string, exercise: any, originalIndex: number) => {
+    try {
+      if (!athleteData) {
+        alert("Error: No se pudo verificar la identidad del atleta. Recarga la página.");
+        return;
+      }
 
-    // 1. Limpieza de datos antes de enviar
-    const cleanExName = (exercise.name || '').trim();
-    const cleanKey = cleanExName.toLowerCase();
-    const weightNum = parseFloat(logData.weight || '0');
-    const repsNum = parseInt(logData.reps || '0');
+      const key = `${assignmentId}-${exercise.id || originalIndex}`;
+      // Blindaje: si el logData no existe aún en memoria, creamos uno con valores por defecto
+      const logData = exerciseLogs[key] || { weight: '', reps: exercise.reps || '', done: false };
+      
+      const cleanExName = (exercise.name || '').trim();
+      const cleanKey = cleanExName.toLowerCase();
+      
+      // Asegurarnos de que no arroje NaN (Not a Number) si están vacíos
+      const weightValue = logData.weight ? String(logData.weight) : '0';
+      const repsValue = logData.reps ? String(logData.reps) : '0';
 
-    // 2. Inserción en base de datos
-    const { error } = await supabase.from('workout_logs').insert([{
-      athlete_id: athleteData.id, 
-      routine_id: assignmentId, 
-      exercise_name: cleanExName, 
-      weight_used: weightNum, 
-      reps_done: repsNum
-    }]);
+      const weightNum = parseFloat(weightValue);
+      const repsNum = parseInt(repsValue, 10);
 
-    if (!error) {
-      // 3. Optimistic UI Update: Reflejar cambios visuales instantáneamente
+      const { error } = await supabase.from('workout_logs').insert([{
+        athlete_id: athleteData.id, 
+        routine_id: assignmentId, 
+        exercise_name: cleanExName, 
+        weight_used: weightNum, 
+        reps_done: repsNum
+      }]);
+
+      if (error) {
+        console.error("Error guardando progreso:", error);
+        alert("Ocurrió un error al guardar en la base de datos: " + error.message);
+        return;
+      }
+
+      // Actualizar visualmente al instante
       setExerciseLogs(prev => ({ 
         ...prev, 
-        [key]: { ...prev[key], done: true } 
+        [key]: { weight: weightValue, reps: repsValue, done: true } 
       }));
       
       setPastRecords(prev => ({
         ...prev,
         [cleanKey]: { weight: weightNum, reps: repsNum }
       }));
-    } else {
-      console.error("Error guardando progreso:", error);
+
+    } catch (err) {
+      console.error("Error crítico en saveLog:", err);
+      alert("Hubo un fallo inesperado al intentar guardar tu ejercicio.");
     }
   };
 
@@ -254,11 +271,11 @@ export function AthleteDashboard() {
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 items-end">
                                   <div>
                                     <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Peso (Kg/Lb)</label>
-                                    <input type="number" value={currentLog.weight} onChange={(e) => handleLogChange(key, 'weight', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
+                                    <input type="number" value={currentLog.weight || ''} onChange={(e) => handleLogChange(key, 'weight', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
                                   </div>
                                   <div>
                                     <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Reps Hoy</label>
-                                    <input type="number" value={currentLog.reps} onChange={(e) => handleLogChange(key, 'reps', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
+                                    <input type="number" value={currentLog.reps || ''} onChange={(e) => handleLogChange(key, 'reps', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
                                   </div>
                                   <div className="col-span-2 sm:col-span-1">
                                     <button onClick={() => saveLog(assignment.id, exercise, originalIndex)} disabled={currentLog.done} className="w-full py-2.5 px-3 bg-amber-500 text-black rounded-lg text-sm font-black uppercase hover:bg-amber-400 transition-all disabled:opacity-50 disabled:bg-emerald-500/20 disabled:text-emerald-400 flex items-center justify-center gap-2">
@@ -328,11 +345,11 @@ export function AthleteDashboard() {
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t border-zinc-800/80 items-end">
                         <div>
                           <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Peso (Kg/Lb)</label>
-                          <input type="number" value={currentLog.weight} onChange={(e) => handleLogChange(key, 'weight', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
+                          <input type="number" value={currentLog.weight || ''} onChange={(e) => handleLogChange(key, 'weight', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Reps Hoy</label>
-                          <input type="number" value={currentLog.reps} onChange={(e) => handleLogChange(key, 'reps', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
+                          <input type="number" value={currentLog.reps || ''} onChange={(e) => handleLogChange(key, 'reps', e.target.value)} disabled={currentLog.done} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-bold text-white focus:border-amber-500 outline-none disabled:opacity-50" />
                         </div>
                         <div className="col-span-2 sm:col-span-1">
                           <button onClick={() => saveLog(assignment.id, exercise, originalIndex)} disabled={currentLog.done} className="w-full py-2.5 px-3 bg-amber-500 text-black rounded-lg text-sm font-black uppercase hover:bg-amber-400 transition-all disabled:opacity-50 disabled:bg-emerald-500/20 disabled:text-emerald-400 flex items-center justify-center gap-2">
