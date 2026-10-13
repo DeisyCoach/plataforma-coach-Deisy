@@ -36,7 +36,7 @@ export function Athletes() {
   const fetchAthletesAndDetails = async () => {
     if (!user) return;
     
-    // 🚨 Filtramos para obtener solo los atletas de ESTE coach
+    // Obtener atletas
     const { data: athletesData, error } = await supabase
       .from('athletes')
       .select('*')
@@ -66,7 +66,7 @@ export function Athletes() {
     setAthletes(athletesData);
   };
 
-  // 🚨 CREAR ATLETA NUEVO
+  // 🚨 CREAR ATLETA NUEVO (AUTH + BASE DE DATOS)
   const handleAddAthlete = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFullName || !newEmail || !newPassword) return alert('Por favor llena todos los campos');
@@ -74,31 +74,38 @@ export function Athletes() {
     if (!user) return alert('No hay sesión de Coach activa');
 
     setIsSubmitting(true);
+    const cleanEmail = newEmail.trim().toLowerCase();
 
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       if (supabaseUrl && supabaseAnonKey) {
+        // Usamos un cliente temporal para no cerrar la sesión del Coach actual
         const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
-        await tempClient.auth.signUp({
-          email: newEmail,
-          password: newPassword,
-          options: { data: { full_name: newFullName, role: 'athlete' } }
+        
+        const { error: authError } = await tempClient.auth.signUp({
+          email: cleanEmail,
+          password: newPassword.trim(),
+          options: { data: { full_name: newFullName.trim(), role: 'athlete' } }
         });
+
+        if (authError && !authError.message.includes('already registered')) {
+          console.warn("Advertencia al registrar en Auth:", authError.message);
+        }
       }
 
-      // 🚨 INSERCIÓN CORREGIDA: Incluimos el coach_id explícitamente
+      // Inserción en la tabla de atletas con coach_id
       const { error: dbError } = await supabase
         .from('athletes')
         .insert([{ 
-          full_name: newFullName, 
-          email: newEmail,
+          full_name: newFullName.trim(), 
+          email: cleanEmail,
           coach_id: user.id 
         }]);
 
       if (!dbError) {
-        alert(`¡Atleta creado exitosamente!\n\nEmail: ${newEmail}\nContraseña: ${newPassword}`);
+        alert(`¡Atleta creado exitosamente!\n\nEmail: ${cleanEmail}\nContraseña: ${newPassword.trim()}`);
         setNewFullName('');
         setNewEmail('');
         setNewPassword('');
@@ -114,7 +121,7 @@ export function Athletes() {
     }
   };
 
-  // 🚨 ABRIR MODAL EDITAR ATLETA
+  // ABRIR MODAL EDITAR ATLETA
   const openEditModal = (athlete: any) => {
     setEditingAthleteId(athlete.id);
     setEditFullName(athlete.full_name);
@@ -123,23 +130,24 @@ export function Athletes() {
     setIsEditModalOpen(true);
   };
 
-  // 🚨 ACTUALIZAR ATLETA EXISTENTE
+  // ACTUALIZAR ATLETA EXISTENTE
   const handleUpdateAthlete = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAthleteId || !editFullName || !editEmail) return alert('Llena los campos obligatorios');
 
     setIsSubmitting(true);
+    const cleanEmail = editEmail.trim().toLowerCase();
 
     try {
       const { error: dbError } = await supabase
         .from('athletes')
-        .update({ full_name: editFullName, email: editEmail })
+        .update({ full_name: editFullName.trim(), email: cleanEmail })
         .eq('id', editingAthleteId);
 
       if (dbError) throw dbError;
 
       if (editPassword.trim().length > 0) {
-        if (editPassword.length < 6) return alert('La contraseña debe tener al menos 6 caracteres');
+        if (editPassword.trim().length < 6) return alert('La contraseña debe tener al menos 6 caracteres');
 
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -148,16 +156,16 @@ export function Athletes() {
           const tempClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
           
           const { error: authError } = await tempClient.auth.signUp({
-            email: editEmail,
-            password: editPassword,
-            options: { data: { full_name: editFullName, role: 'athlete' } }
+            email: cleanEmail,
+            password: editPassword.trim(),
+            options: { data: { full_name: editFullName.trim(), role: 'athlete' } }
           });
 
           if (authError && authError.message.includes('already registered')) {
-            await tempClient.auth.resetPasswordForEmail(editEmail);
-            alert(`Los datos de ${editFullName} fueron actualizados.\n\nEl correo ya estaba registrado en el sistema. Se envió un correo de restablecimiento a ${editEmail}.`);
+            await tempClient.auth.resetPasswordForEmail(cleanEmail);
+            alert(`Los datos de ${editFullName} fueron actualizados.\n\nEl correo ya estaba registrado en Auth. Se envió un correo de restablecimiento a ${cleanEmail}.`);
           } else {
-            alert(`¡Atleta actualizado correctamente!\n\n${editFullName} ahora puede ingresar con:\nCorreo: ${editEmail}\nContraseña: ${editPassword}`);
+            alert(`¡Atleta actualizado correctamente!\n\n${editFullName} ahora puede ingresar con:\nCorreo: ${cleanEmail}\nContraseña: ${editPassword.trim()}`);
           }
         }
       } else {
@@ -222,7 +230,7 @@ export function Athletes() {
           <h2 className="text-2xl font-black text-white">Mis Atletas</h2>
           <p className="text-zinc-400 text-sm mt-1">Gestiona a tus alumnos, asigna contraseñas y revisa sus avances.</p>
         </div>
-        <button onClick={() => setIsAddModalOpen(true)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-colors">
+        <button onClick={() => setIsAddModalOpen(true)} className="bg-yellow-400 hover:bg-yellow-300 text-black font-black py-2.5 px-4 rounded-xl flex items-center gap-2 shadow-lg shadow-yellow-400/20 transition-all">
           <UserPlus className="w-5 h-5" /> Agregar Atleta
         </button>
       </div>
@@ -235,7 +243,7 @@ export function Athletes() {
             placeholder="Buscar atleta por nombre o correo..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-amber-500"
+            className="w-full pl-10 pr-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-yellow-400"
           />
         </div>
       </div>
@@ -272,13 +280,13 @@ export function Athletes() {
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full w-fit"><Utensils className="w-3.5 h-3.5" /></span>
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full w-fit"><Pill className="w-3.5 h-3.5" /></span>
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-yellow-400 bg-yellow-400/10 px-2.5 py-1 rounded-full w-fit"><Pill className="w-3.5 h-3.5" /></span>
                     </div>
                   </td>
                   <td className="px-6 py-4 flex justify-end gap-2">
                     <button 
                       onClick={() => handleToggleStatus(athlete.id, isActive, athlete.full_name)}
-                      className={`p-2 rounded-lg transition-colors shadow-sm ${isActive ? 'text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' : 'text-emerald-500 hover:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'}`}
+                      className={`p-2 rounded-lg transition-colors shadow-sm ${isActive ? 'text-yellow-400 hover:text-yellow-300 bg-yellow-400/10 hover:bg-yellow-400/20' : 'text-emerald-500 hover:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'}`}
                       title={isActive ? "Congelar Atleta" : "Reactivar Atleta"}
                     >
                       {isActive ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
@@ -312,22 +320,22 @@ export function Athletes() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form onSubmit={handleAddAthlete} className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <h3 className="font-bold text-lg text-white flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-amber-500" /> Agregar Nuevo Atleta
+              <UserPlus className="w-5 h-5 text-yellow-400" /> Agregar Nuevo Atleta
             </h3>
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Nombre Completo</label>
-              <input type="text" value={newFullName} onChange={e => setNewFullName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" placeholder="Ej. Juan Pérez" required />
+              <input type="text" value={newFullName} onChange={e => setNewFullName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-yellow-400 outline-none" placeholder="Ej. Juan Pérez" required />
             </div>
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correo Electrónico</label>
-              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" placeholder="ejemplo@gmail.com" required />
+              <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-yellow-400 outline-none" placeholder="ejemplo@gmail.com" required />
             </div>
             <div>
-              <label className="block text-xs font-bold text-amber-500 uppercase mb-1 flex items-center gap-1">
+              <label className="block text-xs font-bold text-yellow-400 uppercase mb-1 flex items-center gap-1">
                 <Key className="w-3.5 h-3.5" /> Contraseña de Acceso
               </label>
               <div className="relative">
-                <input type={showPassword ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none pr-10" placeholder="Mínimo 6 caracteres" required />
+                <input type={showPassword ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-yellow-400 outline-none pr-10" placeholder="Mínimo 6 caracteres" required />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -335,7 +343,7 @@ export function Athletes() {
             </div>
             <div className="flex gap-2 pt-2 border-t border-zinc-800/80">
               <button type="button" onClick={() => setIsAddModalOpen(false)} className="w-1/2 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800" disabled={isSubmitting}>Cancelar</button>
-              <button type="submit" className="w-1/2 py-2.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 disabled:opacity-50" disabled={isSubmitting}>{isSubmitting ? 'Guardando...' : 'Guardar Atleta'}</button>
+              <button type="submit" className="w-1/2 py-2.5 bg-yellow-400 text-black font-black rounded-xl hover:bg-yellow-300 disabled:opacity-50" disabled={isSubmitting}>{isSubmitting ? 'Guardando...' : 'Guardar Atleta'}</button>
             </div>
           </form>
         </div>
@@ -347,7 +355,7 @@ export function Athletes() {
           <form onSubmit={handleUpdateAthlete} className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg text-white flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-amber-500" /> Editar Atleta
+                <Pencil className="w-5 h-5 text-yellow-400" /> Editar Atleta
               </h3>
               <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-zinc-500 hover:text-white">
                 <X className="w-5 h-5" />
@@ -356,16 +364,16 @@ export function Athletes() {
 
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Nombre Completo</label>
-              <input type="text" value={editFullName} onChange={e => setEditFullName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" required />
+              <input type="text" value={editFullName} onChange={e => setEditFullName(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-yellow-400 outline-none" required />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Correo Electrónico</label>
-              <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none" required />
+              <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-yellow-400 outline-none" required />
             </div>
 
             <div className="border-t border-zinc-800/80 pt-3">
-              <label className="block text-xs font-bold text-amber-500 uppercase mb-1 flex items-center gap-1">
+              <label className="block text-xs font-bold text-yellow-400 uppercase mb-1 flex items-center gap-1">
                 <Key className="w-3.5 h-3.5" /> Asignar / Cambiar Contraseña
               </label>
               <div className="relative">
@@ -373,7 +381,7 @@ export function Athletes() {
                   type={showEditPassword ? "text" : "password"} 
                   value={editPassword} 
                   onChange={e => setEditPassword(e.target.value)} 
-                  className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-amber-500 outline-none pr-10 text-sm" 
+                  className="w-full px-3 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white focus:border-yellow-400 outline-none pr-10 text-sm" 
                   placeholder="Escribe la clave para este atleta" 
                 />
                 <button type="button" onClick={() => setShowEditPassword(!showEditPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">
@@ -385,7 +393,7 @@ export function Athletes() {
 
             <div className="flex gap-2 pt-2 border-t border-zinc-800/80">
               <button type="button" onClick={() => setIsEditModalOpen(false)} className="w-1/2 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800" disabled={isSubmitting}>Cancelar</button>
-              <button type="submit" className="w-1/2 py-2.5 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 disabled:opacity-50" disabled={isSubmitting}>{isSubmitting ? 'Guardando...' : 'Actualizar'}</button>
+              <button type="submit" className="w-1/2 py-2.5 bg-yellow-400 text-black font-black rounded-xl hover:bg-yellow-300 disabled:opacity-50" disabled={isSubmitting}>{isSubmitting ? 'Guardando...' : 'Actualizar'}</button>
             </div>
           </form>
         </div>
