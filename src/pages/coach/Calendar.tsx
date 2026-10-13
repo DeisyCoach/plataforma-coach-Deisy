@@ -313,7 +313,6 @@ export function Calendar() {
                 </>
               )}
 
-              {/* LISTA DE EJERCICIOS CONFIGURABLES */}
               <div className="space-y-3 mt-4">
                 {(isModalOpen ? customExercises : editExercises).map((ex, idx) => (
                   <div key={idx} className={`p-4 rounded-xl border transition-all ${ex.group_type !== 'normal' ? 'bg-yellow-950/20 border-yellow-400/30' : 'bg-zinc-900 border-zinc-800'}`}>
