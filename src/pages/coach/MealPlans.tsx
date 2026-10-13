@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
-import { Apple, Plus, Trash2, Edit, User, Filter, Flame, X, Copy } from 'lucide-react';
+import { useAuth } from '../../providers/AuthProvider';
+import { Apple, Trash2, Edit, User, Filter, X, Copy, Plus } from 'lucide-react';
 
 export function MealPlans() {
+  const { user } = useAuth();
   const [athletes, setAthletes] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [assignedDiets, setAssignedDiets] = useState<any[]>([]);
@@ -22,56 +24,79 @@ export function MealPlans() {
   const [selectedTemplateToAssign, setSelectedTemplateToAssign] = useState<any>(null);
   const [selectedAthleteToAssign, setSelectedAthleteToAssign] = useState('');
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    if (user) {
+      fetchData(); 
+    }
+  }, [user]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [ { data: aData }, { data: tData }, { data: adData } ] = await Promise.all([
+      const [{ data: aData }, { data: tData }, { data: adData }] = await Promise.all([
         supabase.from('athletes').select('*').order('full_name'),
         supabase.from('meal_plans').select('*').order('created_at', { ascending: false }),
-        supabase.from('athlete_meals').select('*, athletes!inner(full_name)').order('created_at', { ascending: false })
+        supabase.from('athlete_meals').select('*, athletes(full_name)').order('created_at', { ascending: false })
       ]);
       
       setAthletes(aData || []);
       setTemplates(tData || []);
       setAssignedDiets(adData || []);
     } catch (error) {
-      console.error(error);
+      console.error("Error al cargar datos de nutrición:", error);
     }
     setLoading(false);
   };
 
+  // 🚨 GUARDAR PLANTILLA MÁSTER (Con coach_id)
   const handleSaveMaster = async () => {
     if (!newTitle) return alert('Ponle un título a la plantilla');
-    const { error } = await supabase.from('meal_plans').insert([{ title: newTitle, calories: newCalories, meals: newMeals }]);
+    if (!user) return alert('No hay sesión activa');
+
+    const { error } = await supabase.from('meal_plans').insert([{ 
+      title: newTitle, 
+      calories: newCalories, 
+      meals: newMeals,
+      coach_id: user.id 
+    }]);
+
     if (!error) {
       alert('Plantilla guardada exitosamente');
-      setNewTitle(''); setNewCalories('');
+      setNewTitle(''); 
+      setNewCalories('');
       setNewMeals([{ name: 'Desayuno', items: '' }, { name: 'Almuerzo', items: '' }, { name: 'Cena', items: '' }]);
       fetchData();
+    } else {
+      alert('Error al guardar plantilla: ' + error.message);
     }
   };
 
   const handleDeleteMaster = async (id: string) => {
-    if(!window.confirm('¿Seguro que deseas eliminar esta plantilla maestra? Esto no afectará a los atletas que ya la tengan.')) return;
+    if (!window.confirm('¿Seguro que deseas eliminar esta plantilla maestra? Esto no afectará a los atletas que ya la tengan.')) return;
     await supabase.from('meal_plans').delete().eq('id', id);
     fetchData();
   };
 
+  // 🚨 ASIGNAR PLANTILLA A ATLETA (Con coach_id)
   const handleAssignTemplate = async () => {
-    if(!selectedAthleteToAssign || !selectedTemplateToAssign) return alert('Faltan datos');
+    if (!selectedAthleteToAssign || !selectedTemplateToAssign) return alert('Faltan datos');
+    if (!user) return alert('No hay sesión activa');
+
     const { error } = await supabase.from('athlete_meals').insert([{
       athlete_id: selectedAthleteToAssign,
       template_id: selectedTemplateToAssign.id,
       title: selectedTemplateToAssign.title,
       calories: selectedTemplateToAssign.calories,
-      meals: selectedTemplateToAssign.meals
+      meals: selectedTemplateToAssign.meals,
+      coach_id: user.id
     }]);
-    if(!error) {
+
+    if (!error) {
       alert('Dieta asignada al atleta');
       setIsAssignModalOpen(false);
       fetchData();
+    } else {
+      alert('Error al asignar dieta: ' + error.message);
     }
   };
 
@@ -79,7 +104,6 @@ export function MealPlans() {
     setEditingDiet(diet);
     const parsed = typeof diet.meals === 'string' ? JSON.parse(diet.meals) : (diet.meals || []);
     
-    // 🚨 MAGIA: Traduce las dietas viejas al formato nuevo automáticamente al editar
     const normalizedMeals = parsed.map((m: any) => ({
       name: m.time || m.name || '',
       items: m.details || m.items || ''
@@ -95,21 +119,23 @@ export function MealPlans() {
 
   const handleSaveEdit = async () => {
     const { error } = await supabase.from('athlete_meals').update({ meals: editMeals }).eq('id', editingDiet.id);
-    if(!error) {
+    if (!error) {
       setIsEditModalOpen(false);
       fetchData();
     } else alert('Error: ' + error.message);
   };
 
   const handleDeleteAssignedDiet = async (id: string) => {
-    if(!window.confirm('¿Seguro que deseas eliminar esta dieta asignada al atleta?')) return;
+    if (!window.confirm('¿Seguro que deseas eliminar esta dieta asignada al atleta?')) return;
     await supabase.from('athlete_meals').delete().eq('id', id);
     fetchData();
   };
 
-  const filteredDiets = selectedAthleteFilter === 'ALL' ? assignedDiets : assignedDiets.filter(d => String(d.athlete_id) === String(selectedAthleteFilter));
+  const filteredDiets = selectedAthleteFilter === 'ALL' 
+    ? assignedDiets 
+    : assignedDiets.filter(d => String(d.athlete_id) === String(selectedAthleteFilter));
 
-  if(loading) return <div className="p-8 text-amber-500 font-bold">Cargando Nutrición...</div>;
+  if (loading) return <div className="p-8 text-amber-500 font-bold text-center">Cargando Nutrición...</div>;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

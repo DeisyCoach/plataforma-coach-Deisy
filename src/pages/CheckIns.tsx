@@ -5,12 +5,14 @@ import { ClipboardCheck, Scale, CheckCircle2, AlertCircle, Send } from 'lucide-r
 
 export function CheckIns() {
   const { user } = useAuth();
-  const isCoach = user?.email === 'coach@plataforma.com';
 
+  // 🚨 Detección dinámica de Coach / Atleta
+  const [isCoach, setIsCoach] = useState<boolean>(false);
   const [athletes, setAthletes] = useState<any[]>([]);
   const [checkIns, setCheckIns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Estados del formulario para el Atleta
   const [fastingWeight, setFastingWeight] = useState('');
   const [recovery, setRecovery] = useState(3);
   const [strength, setStrength] = useState(3);
@@ -20,39 +22,88 @@ export function CheckIns() {
   const [digestion, setDigestion] = useState(3);
   const [notes, setNotes] = useState('');
 
-  useEffect(() => { fetchData(); }, [user]);
+  useEffect(() => {
+    if (user) {
+      checkRoleAndFetchData();
+    }
+  }, [user]);
 
-  const fetchData = async () => {
+  const checkRoleAndFetchData = async () => {
     setLoading(true);
-    if (isCoach) {
-      const { data: athletesData } = await supabase.from('athletes').select('*').order('full_name');
-      const { data: checkinsData } = await supabase.from('weekly_checkins').select('*, athletes(full_name, email)').order('created_at', { ascending: false });
-      setAthletes(athletesData || []); setCheckIns(checkinsData || []);
-    } else {
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('email', user?.email).single();
-      if (athlete) {
-        const { data: myCheckins } = await supabase.from('weekly_checkins').select('*').eq('athlete_id', athlete.id).order('created_at', { ascending: false });
+    try {
+      if (!user?.email) {
+        setLoading(false);
+        return;
+      }
+
+      const cleanEmail = user.email.trim().toLowerCase();
+
+      // 1. Verificamos si existe en la tabla de atletas
+      const { data: athlete } = await supabase
+        .from('athletes')
+        .select('id')
+        .ilike('email', cleanEmail)
+        .maybeSingle();
+
+      const coachRole = !athlete;
+      setIsCoach(coachRole);
+
+      // 2. Cargamos datos según el rol
+      if (coachRole) {
+        const { data: athletesData } = await supabase.from('athletes').select('*').order('full_name');
+        const { data: checkinsData } = await supabase
+          .from('weekly_checkins')
+          .select('*, athletes(full_name, email)')
+          .order('created_at', { ascending: false });
+
+        setAthletes(athletesData || []);
+        setCheckIns(checkinsData || []);
+      } else if (athlete) {
+        const { data: myCheckins } = await supabase
+          .from('weekly_checkins')
+          .select('*')
+          .eq('athlete_id', athlete.id)
+          .order('created_at', { ascending: false });
+
         setCheckIns(myCheckins || []);
       }
+    } catch (err) {
+      console.error("Error en CheckIns:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSubmitCheckin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fastingWeight) return alert('Por favor ingresa tu peso en ayunas.');
 
-    const { data: athlete } = await supabase.from('athletes').select('id').eq('email', user?.email).single();
+    const cleanEmail = user?.email?.trim().toLowerCase();
+    const { data: athlete } = await supabase.from('athletes').select('id').ilike('email', cleanEmail || '').single();
     if (!athlete) return alert('Atleta no encontrado.');
 
     const { error } = await supabase.from('weekly_checkins').insert([
-      { athlete_id: athlete.id, fasting_weight: parseFloat(fastingWeight), recovery, strength, libido, rest, discomfort, digestion, notes }
+      { 
+        athlete_id: athlete.id, 
+        fasting_weight: parseFloat(fastingWeight), 
+        recovery, 
+        strength, 
+        libido, 
+        rest, 
+        discomfort, 
+        digestion, 
+        notes 
+      }
     ]);
 
     if (!error) {
       alert('¡Chequeo semanal enviado con éxito!');
-      setFastingWeight(''); setNotes(''); fetchData();
-    } else { alert('Error al enviar el chequeo.'); }
+      setFastingWeight(''); 
+      setNotes(''); 
+      checkRoleAndFetchData();
+    } else { 
+      alert('Error al enviar el chequeo: ' + error.message); 
+    }
   };
 
   const isUpdated = (dateString: string) => {
@@ -60,6 +111,8 @@ export function CheckIns() {
     const diffDays = (new Date().getTime() - new Date(dateString).getTime()) / (1000 * 3600 * 24);
     return diffDays <= 7;
   };
+
+  if (loading) return <div className="p-8 text-amber-500 font-bold text-center">Cargando módulo de Chequeos...</div>;
 
   return (
     <div className="space-y-8">
@@ -76,13 +129,12 @@ export function CheckIns() {
       {isCoach ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {athletes.map((ath) => {
-            // 🚨 ARREGLO: Extraemos todo el historial del atleta en vez de solo el último
             const athleteHistory = checkIns.filter(c => c.athlete_id === ath.id);
             const lastCheckin = athleteHistory[0];
             const updated = lastCheckin && isUpdated(lastCheckin.created_at);
 
             return (
-              <div key={ath.id} className="bg-zinc-950 border border-zinc-800 p-5 rounded-2xl flex flex-col justify-between space-y-4">
+              <div key={ath.id} className="bg-zinc-950 border border-zinc-800 p-5 rounded-2xl flex flex-col justify-between space-y-4 shadow-xl">
                 <div className="flex justify-between items-start">
                   <div>
                     <h4 className="font-bold text-white text-base">{ath.full_name}</h4>
@@ -97,10 +149,8 @@ export function CheckIns() {
 
                 {lastCheckin ? (
                   <div className="bg-zinc-900/80 p-3 rounded-xl border border-zinc-800 text-xs space-y-2">
-                    
-                    {/* 🚨 ARREGLO: Mini historial horizontal (como el del atleta) */}
                     {athleteHistory.length > 0 && (
-                      <div className="flex gap-2 overflow-x-auto pb-3 mb-2 border-b border-zinc-800/80">
+                      <div className="flex gap-2 overflow-x-auto pb-3 mb-2 border-b border-zinc-800/80 custom-scrollbar">
                         {athleteHistory.slice(0, 5).map((bw, i) => (
                           <div key={i} className="bg-zinc-950 border border-zinc-800 rounded-lg p-2 min-w-[70px] text-center shrink-0">
                             <p className="text-emerald-400 font-black text-sm">{bw.fasting_weight} <span className="text-[10px]">kg</span></p>
@@ -132,9 +182,9 @@ export function CheckIns() {
           })}
         </div>
       ) : (
-        /* VISTA DEL ATLETA: Se mantiene igual */
+        /* VISTA DEL ATLETA */
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <form onSubmit={handleSubmitCheckin} className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800 space-y-5 lg:col-span-1">
+          <form onSubmit={handleSubmitCheckin} className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800 space-y-5 lg:col-span-1 shadow-xl">
             <h3 className="font-bold text-white text-base border-b border-zinc-800 pb-3 flex items-center gap-2"><Scale className="w-5 h-5 text-amber-400" /> Registrar Chequeo</h3>
             <div>
               <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">Peso en Ayunas (kg)</label>
@@ -164,7 +214,7 @@ export function CheckIns() {
             <h3 className="font-bold text-white text-lg">Tu Historial de Peso Corporal</h3>
             <div className="space-y-3">
               {checkIns.map((c) => (
-                <div key={c.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex justify-between items-center">
+                <div key={c.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex justify-between items-center shadow-lg">
                   <div>
                     <span className="text-amber-400 font-bold text-lg">{c.fasting_weight} kg</span>
                     <p className="text-xs text-zinc-500">{new Date(c.created_at).toLocaleDateString()} - Sábado de Chequeo</p>

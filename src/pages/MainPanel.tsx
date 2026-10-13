@@ -138,14 +138,14 @@ export function MainPanel() {
     checkRoleAndFetchData();
   }, [user]);
 
-  if (loading) return <div className="text-amber-500 font-bold p-8 text-center">Cargando tu panel...</div>;
+  if (loading) return <div className="text-yellow-400 font-black p-8 text-center animate-pulse">Cargando tu panel...</div>;
 
   if (isCoach) {
     return (
       <div className="bg-zinc-950 p-10 rounded-3xl shadow-2xl border border-zinc-800 text-center max-w-2xl mx-auto mt-10 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/10 blur-3xl rounded-full"></div>
-        <div className="w-20 h-20 bg-amber-500 rounded-2xl mx-auto flex items-center justify-center font-black text-black text-4xl shadow-[0_0_20px_rgba(245,158,11,0.3)] mb-6 relative z-10">C</div>
-        <h2 className="text-3xl font-black text-white mb-3 relative z-10">Bienvenido a COACH<span className="text-amber-400">APP</span></h2>
+        <div className="absolute top-0 right-0 w-40 h-40 bg-yellow-400/10 blur-3xl rounded-full"></div>
+        <div className="w-20 h-20 bg-yellow-400 rounded-2xl mx-auto flex items-center justify-center font-black text-black text-4xl shadow-[0_0_20px_rgba(250,204,21,0.4)] mb-6 relative z-10">D</div>
+        <h2 className="text-3xl font-black text-white mb-3 relative z-10">Bienvenido a <span className="text-yellow-400">DEISY COACH ELITE</span></h2>
         <p className="text-zinc-400 text-sm relative z-10">Selecciona una opción en el menú lateral para gestionar entrenamientos, nutrición y evaluar el progreso de tus atletas.</p>
       </div>
     );
@@ -157,18 +157,18 @@ export function MainPanel() {
         <div className="bg-red-500/10 border border-red-500/30 p-5 rounded-2xl flex items-center gap-4 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.15)]">
           <AlertCircle className="w-8 h-8 text-red-500 shrink-0" />
           <div>
-            <h3 className="text-red-500 font-black text-lg">¡Atención, Mutante!</h3>
-            <p className="text-zinc-300 text-sm">Oye, no has subido tu chequeo esta semana o ya toca el nuevo. <Link to="/checkins" className="text-white font-bold underline decoration-red-500">¡Ponte al día aquí!</Link></p>
+            <h3 className="text-red-500 font-black text-lg">¡Atención, Atleta!</h3>
+            <p className="text-zinc-300 text-sm">No has subido tu chequeo esta semana o ya toca el nuevo. <Link to="/checkins" className="text-white font-bold underline decoration-red-500">¡Ponte al día aquí!</Link></p>
           </div>
         </div>
       )}
 
       <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-amber-500/10 blur-3xl rounded-full pointer-events-none"></div>
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-yellow-400/10 blur-3xl rounded-full pointer-events-none"></div>
         <div className="relative z-10">
-          <p className="text-amber-500 text-xs font-black uppercase tracking-widest mb-1">Panel Principal</p>
+          <p className="text-yellow-400 text-xs font-black uppercase tracking-widest mb-1">Panel Principal</p>
           <h1 className="text-3xl sm:text-4xl font-black mb-2 leading-tight">
-            Bienvenido a <span className="text-amber-400">El Inge Fit App</span>
+            Bienvenido a <span className="text-yellow-400">Deisy Coach Elite</span>
           </h1>
           <p className="text-zinc-300 font-medium mb-1">Aquí está el resumen de tu evolución, {athleteData?.full_name?.split(' ')[0] || 'Atleta'}.</p>
           <p className="text-zinc-500 text-sm">Navega en el menú lateral para ver tu entrenamiento, dieta o subir tus chequeos.</p>
@@ -210,11 +210,11 @@ export function MainPanel() {
         </div>
 
         <div className={`rounded-3xl border p-6 flex flex-col justify-center h-[280px]
-          ${strengthFeedback.type === 'up' ? 'bg-amber-950/20 border-amber-500/30' : 
+          ${strengthFeedback.type === 'up' ? 'bg-yellow-950/20 border-yellow-400/30' : 
             strengthFeedback.type === 'down' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-zinc-950 border-zinc-800'}
         `}>
           <div className="flex items-center gap-3 mb-4">
-            <div className={`p-4 rounded-xl shadow-inner ${strengthFeedback.type === 'up' ? 'bg-amber-500/20 text-amber-500' : strengthFeedback.type === 'down' ? 'bg-blue-500/20 text-blue-400' : 'bg-zinc-900 text-zinc-400'}`}>
+            <div className={`p-4 rounded-xl shadow-inner ${strengthFeedback.type === 'up' ? 'bg-yellow-400/20 text-yellow-400' : strengthFeedback.type === 'down' ? 'bg-blue-500/20 text-blue-400' : 'bg-zinc-900 text-zinc-400'}`}>
               {strengthFeedback.type === 'up' ? <Trophy className="w-8 h-8" /> : strengthFeedback.type === 'down' ? <Activity className="w-8 h-8" /> : <TrendingUp className="w-8 h-8" />}
             </div>
             <h3 className="font-black text-white text-xl leading-tight">{strengthFeedback.title || 'ANALIZANDO CARGAS...'}</h3>

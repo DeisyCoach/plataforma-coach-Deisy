@@ -19,6 +19,7 @@ export function Routines() {
 
   const fetchRoutines = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('routines')
         .select('*')
@@ -34,12 +35,14 @@ export function Routines() {
   };
 
   useEffect(() => {
-    fetchRoutines();
-  }, []);
+    if (user) {
+      fetchRoutines();
+    }
+  }, [user]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) return alert('No hay sesión activa');
     
     setSaving(true);
     try {
@@ -66,16 +69,15 @@ export function Routines() {
   };
 
   const handleDuplicate = async (routine: any) => {
-    if (!user) return;
+    if (!user) return alert('No hay sesión activa');
     
     try {
-      // Creamos la copia exacta incluyendo los ejercicios
       const { error } = await supabase.from('routines').insert([
         {
           coach_id: user.id,
           name: `${routine.name} (Copia)`,
           description: routine.description,
-          exercises: routine.exercises // Copia todos los ejercicios
+          exercises: routine.exercises
         }
       ]);
 
@@ -100,7 +102,6 @@ export function Routines() {
     }
   };
 
-  // Filtrar rutinas según la barra de búsqueda
   const filteredRoutines = routines.filter(routine => 
     routine.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
     routine.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -109,14 +110,14 @@ export function Routines() {
   return (
     <div className="space-y-6 relative">
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800 pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Mis Rutinas y Plantillas</h2>
-          <p className="text-gray-500 text-sm mt-1">Crea plantillas genéricas o diseña planes específicos para tus atletas.</p>
+          <h2 className="text-2xl font-black text-white">Mis Rutinas y Plantillas</h2>
+          <p className="text-zinc-400 text-sm mt-1">Crea plantillas genéricas o diseña planes específicos para tus atletas.</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 rounded-xl transition-colors shadow-lg shadow-amber-500/20"
         >
           <Plus className="w-5 h-5" />
           Crear Rutina
@@ -124,17 +125,17 @@ export function Routines() {
       </div>
 
       {/* BUSCADOR */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-        <Search className="w-5 h-5 text-gray-400" />
+      <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 flex items-center gap-3 focus-within:border-amber-500 transition-all">
+        <Search className="w-5 h-5 text-zinc-500" />
         <input 
           type="text" 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Buscar rutina o plantilla por nombre..." 
-          className="flex-1 outline-none text-sm text-gray-900 bg-transparent placeholder:text-gray-400"
+          className="flex-1 outline-none text-sm text-white bg-transparent placeholder:text-zinc-600"
         />
         {searchTerm && (
-          <button onClick={() => setSearchTerm('')} className="text-gray-400 hover:text-gray-600">
+          <button onClick={() => setSearchTerm('')} className="text-zinc-500 hover:text-white">
             <X className="w-4 h-4" />
           </button>
         )}
@@ -143,11 +144,11 @@ export function Routines() {
       {/* GRILLA DE RUTINAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          <p className="text-gray-500 col-span-full text-center py-12">Cargando rutinas...</p>
+          <p className="text-amber-500 font-bold col-span-full text-center py-12">Cargando rutinas...</p>
         ) : filteredRoutines.length === 0 ? (
-          <div className="col-span-full bg-white p-12 rounded-xl shadow-sm border border-gray-100 text-center">
-            <Dumbbell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No se encontraron rutinas. ¡Diseña la primera!</p>
+          <div className="col-span-full bg-zinc-950 p-12 rounded-2xl border border-zinc-800 text-center">
+            <Dumbbell className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+            <p className="text-zinc-500">No se encontraron rutinas. ¡Diseña la primera!</p>
           </div>
         ) : (
           filteredRoutines.map((routine) => {
@@ -156,36 +157,36 @@ export function Routines() {
               : (routine.exercises?.length || 0);
 
             return (
-              <div key={routine.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col h-full">
+              <div key={routine.id} className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800 hover:border-zinc-700 transition-all shadow-xl flex flex-col h-full group">
                 <div className="flex-1">
-                  <h3 className="font-bold text-lg text-gray-900">{routine.name}</h3>
-                  <p className="text-sm text-gray-500 mt-2 line-clamp-2">{routine.description || 'Sin descripción'}</p>
+                  <h3 className="font-bold text-lg text-white group-hover:text-amber-400 transition-colors">{routine.name}</h3>
+                  <p className="text-sm text-zinc-400 mt-2 line-clamp-2">{routine.description || 'Sin descripción'}</p>
                 </div>
                 
-                <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
-                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md">
+                <div className="mt-4 pt-4 border-t border-zinc-900 flex justify-between items-center">
+                  <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">
                     {exerciseCount} Ejercicios
                   </span>
                   
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button 
                       onClick={() => handleDuplicate(routine)}
-                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      className="p-2 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
                       title="Duplicar como plantilla"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button 
                       onClick={() => handleDelete(routine.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                       title="Eliminar rutina"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                    <div className="w-px h-4 bg-zinc-800 mx-1"></div>
                     <Link 
                       to={`/coach/routines/${routine.id}`}
-                      className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-bold transition-colors p-1.5 hover:bg-blue-50 rounded-lg"
+                      className="flex items-center gap-1.5 text-xs text-amber-500 hover:text-black hover:bg-amber-500 font-bold transition-all p-2 rounded-lg border border-amber-500/30"
                     >
                       <Edit3 className="w-4 h-4" /> Editar
                     </Link>
@@ -199,50 +200,50 @@ export function Routines() {
 
       {/* MODAL CREAR RUTINA */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">Crear Nueva Rutina</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b border-zinc-800">
+              <h3 className="text-lg font-bold text-white">Crear Nueva Rutina</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-zinc-500 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Nombre de la rutina</label>
+                <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">Nombre de la rutina</label>
                 <input 
                   type="text" 
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-900 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 text-white rounded-xl focus:outline-none focus:border-amber-500 transition-all text-sm"
                   placeholder="Ej. Plantilla Base - Pierna y Glúteo"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Descripción</label>
+                <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">Descripción</label>
                 <textarea 
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-900 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24 transition-all"
+                  className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 text-white rounded-xl focus:outline-none focus:border-amber-500 resize-none h-24 transition-all text-sm"
                   placeholder="Ej. Enfoque en hipertrofia de cuádriceps..."
                 />
               </div>
 
-              <div className="pt-4 flex gap-3">
+              <div className="pt-4 flex gap-3 border-t border-zinc-800/80">
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-zinc-900 text-zinc-400 font-bold rounded-xl hover:bg-zinc-800 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-amber-500 text-black rounded-xl font-bold hover:bg-amber-400 transition-colors disabled:opacity-50"
                 >
                   {saving ? 'Guardando...' : 'Guardar Rutina'}
                 </button>

@@ -49,7 +49,7 @@ export function DashboardLayout() {
   if (isLoading || isRoleChecking) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <span className="text-amber-400 font-semibold animate-pulse">Cargando plataforma...</span>
+        <span className="text-yellow-400 font-bold animate-pulse">Cargando plataforma...</span>
       </div>
     );
   }
@@ -88,9 +88,9 @@ export function DashboardLayout() {
       {/* BARRA SUPERIOR MÓVIL */}
       <div className="md:hidden bg-zinc-950 text-white px-4 py-3 flex items-center justify-between border-b border-zinc-800 sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <img src={logoInge} alt="El Inge Fit Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
-          <span className="font-bold text-lg tracking-wide text-amber-400">
-            {isCoach ? 'El Inge Fit' : 'Portal Atleta'}
+          <img src={logoInge} alt="Deisy Coach Elite Logo" className="w-10 h-10 object-contain drop-shadow-[0_0_10px_rgba(250,204,21,0.6)]" />
+          <span className="font-black text-lg tracking-wide text-yellow-400">
+            {isCoach ? 'Deisy Coach Elite' : 'Portal Atleta'}
           </span>
         </div>
         
@@ -110,10 +110,10 @@ export function DashboardLayout() {
       `}>
         {/* HEADER DESKTOP CON LOGO */}
         <div className="hidden md:flex h-20 items-center px-6 bg-zinc-950 border-b border-zinc-800/80">
-          <img src={logoInge} alt="El Inge Fit Logo" className="w-12 h-12 object-contain mr-3 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]" />
+          <img src={logoInge} alt="Deisy Coach Elite Logo" className="w-12 h-12 object-contain mr-3 drop-shadow-[0_0_12px_rgba(250,204,21,0.5)]" />
           <div>
-            <h1 className="text-lg font-black text-white tracking-wider">EL INGE <span className="text-amber-400">FIT</span></h1>
-            <p className="text-[10px] text-amber-500/80 font-bold uppercase tracking-widest">Team Performance</p>
+            <h1 className="text-lg font-black text-white tracking-wider">DEISY <span className="text-yellow-400">COACH</span></h1>
+            <p className="text-[10px] text-yellow-400/90 font-bold uppercase tracking-widest">Elite Performance</p>
           </div>
         </div>
 
@@ -130,11 +130,11 @@ export function DashboardLayout() {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center px-4 py-3 rounded-xl transition-all group ${
                   isActive 
-                    ? 'bg-amber-500 text-black font-bold shadow-lg shadow-amber-500/20' 
-                    : 'hover:bg-zinc-900 hover:text-amber-400 text-zinc-400'
+                    ? 'bg-yellow-400 text-black font-black shadow-lg shadow-yellow-400/20' 
+                    : 'hover:bg-zinc-900 hover:text-yellow-400 text-zinc-400'
                 }`}
               >
-                <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-black' : 'text-zinc-500 group-hover:text-amber-400'}`} />
+                <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-black' : 'text-zinc-500 group-hover:text-yellow-400'}`} />
                 <span className="text-sm font-medium">{item.name}</span>
               </Link>
             );
@@ -145,7 +145,7 @@ export function DashboardLayout() {
         <div className="p-4 bg-zinc-950 border-t border-zinc-800/80">
           <div className="flex items-center justify-between">
             <div className="truncate pr-2">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500">
+              <p className="text-[10px] font-black uppercase tracking-wider text-yellow-400">
                 {isCoach ? 'Entrenador Principal' : 'Atleta Oficial'}
               </p>
               <p className="text-xs font-semibold text-zinc-200 truncate" title={user.email}>

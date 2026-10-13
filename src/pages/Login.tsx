@@ -36,7 +36,7 @@ export function Login() {
     setLoading(false);
   };
 
-  // 🚨 NUEVA Función: Enviar correo de recuperación
+  // Función: Enviar correo de recuperación
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
@@ -62,19 +62,19 @@ export function Login() {
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
-      {/* Luces de fondo decorativas */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/10 blur-[100px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-600/5 blur-[100px] rounded-full pointer-events-none"></div>
+      {/* Luces de fondo decorativas en amarillo encendido */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-yellow-400/10 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-yellow-500/5 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl relative z-10">
         
         {/* LOGO Y TÍTULO */}
         <div className="flex flex-col items-center mb-8">
-          <img src={logoInge} alt="El Inge Fit" className="w-24 h-24 object-contain drop-shadow-[0_0_15px_rgba(245,158,11,0.3)] mb-4" />
-          <h1 className="text-2xl font-black text-white tracking-wide">
-            {isResetMode ? 'RECUPERAR CUENTA' : 'BIENVENIDO'}
+          <img src={logoInge} alt="Deisy Coach Elite Logo" className="w-28 h-28 object-contain drop-shadow-[0_0_18px_rgba(250,204,21,0.5)] mb-4" />
+          <h1 className="text-2xl font-black text-white tracking-wide text-center">
+            {isResetMode ? 'RECUPERAR CUENTA' : 'DEISY COACH ELITE'}
           </h1>
-          <p className="text-sm text-zinc-500 font-bold uppercase tracking-widest mt-1">
+          <p className="text-xs text-yellow-400 font-bold uppercase tracking-widest mt-1">
             {isResetMode ? 'Te enviaremos un enlace' : 'Panel de Rendimiento'}
           </p>
         </div>
@@ -104,7 +104,7 @@ export function Login() {
                 placeholder="tu@correo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-medium focus:outline-none focus:border-amber-500 transition-colors"
+                className="w-full pl-12 pr-4 py-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-medium focus:outline-none focus:border-yellow-400 transition-colors"
                 required
               />
             </div>
@@ -120,7 +120,7 @@ export function Login() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-medium focus:outline-none focus:border-amber-500 transition-colors"
+                  className="w-full pl-12 pr-4 py-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-medium focus:outline-none focus:border-yellow-400 transition-colors"
                   required={!isResetMode}
                 />
               </div>
@@ -130,7 +130,7 @@ export function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-4 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-yellow-400/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Cargando...' : isResetMode ? 'Enviar Enlace' : 'Ingresar'}
           </button>
@@ -141,14 +141,14 @@ export function Login() {
           {isResetMode ? (
             <button 
               onClick={() => { setIsResetMode(false); setError(''); setMessage(''); }}
-              className="text-sm font-bold text-zinc-400 hover:text-amber-400 flex items-center justify-center gap-2 w-full transition-colors"
+              className="text-sm font-bold text-zinc-400 hover:text-yellow-400 flex items-center justify-center gap-2 w-full transition-colors"
             >
               <ArrowLeft className="w-4 h-4" /> Volver a Iniciar Sesión
             </button>
           ) : (
             <button 
               onClick={() => { setIsResetMode(true); setError(''); setMessage(''); }}
-              className="text-sm font-bold text-zinc-400 hover:text-amber-400 flex items-center justify-center gap-2 w-full transition-colors"
+              className="text-sm font-bold text-zinc-400 hover:text-yellow-400 flex items-center justify-center gap-2 w-full transition-colors"
             >
               <KeyRound className="w-4 h-4" /> ¿Olvidaste tu contraseña?
             </button>
