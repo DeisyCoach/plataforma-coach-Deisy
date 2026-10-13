@@ -1,22 +1,17 @@
 {
-  "name": "El Inge Fit Platform",
-  "short_name": "Inge Fit",
-  "description": "Plataforma oficial de entrenamiento y nutrición.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#f59e0b",
+  "short_name": "Deisy Coach",
+  "name": "Deisy Coach Elite",
+  "description": "Plataforma oficial de entrenamiento y nutrición Deisy Coach Elite.",
   "icons": [
     {
       "src": "/logo.png",
-      "sizes": "192x192",
+      "sizes": "192x192 512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/logo.png",
-      "sizes": "512x512",
-      "type": "image/png"
     }
-  ]
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#FFEA00",
+  "background_color": "#09090b"
 }
