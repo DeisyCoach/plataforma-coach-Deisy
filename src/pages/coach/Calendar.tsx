@@ -276,7 +276,6 @@ export function Calendar() {
         })}
       </div>
 
-      {/* MODAL DE ASIGNAR O EDITAR */}
       {(isModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-950 rounded-2xl border border-zinc-800 max-w-2xl w-full p-6 flex flex-col max-h-[90vh]">
