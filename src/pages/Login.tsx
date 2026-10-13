@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase/client';
 import { Mail, Lock, AlertCircle, CheckCircle2, ArrowLeft, KeyRound } from 'lucide-react';
 
 // 🚨 Importamos tu logo para la pantalla principal
-import logoInge from '../assets/logo.png';
+import logoInge from '../assets/logo-elite.png';
 
 export function Login() {
   const { user } = useAuth();

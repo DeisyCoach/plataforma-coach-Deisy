@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase/client';
 import { LayoutDashboard, Users, Dumbbell, Calendar, LogOut, Menu, X, TrendingUp, Utensils, Pill, ClipboardCheck } from 'lucide-react';
 
 // 🚨 IMPORT DE TU LOGO
-import logoInge from '../../assets/logo.png';
+import logoInge from '../../assets/logo-elite.png';
 
 export function DashboardLayout() {
   const { user, isLoading, signOut } = useAuth();

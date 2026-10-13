@@ -4,7 +4,7 @@
   "description": "Plataforma oficial de entrenamiento y nutrición Deisy Coach Elite.",
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/logo-elite.png",
       "sizes": "192x192 512x512",
       "type": "image/png",
       "purpose": "any maskable"
